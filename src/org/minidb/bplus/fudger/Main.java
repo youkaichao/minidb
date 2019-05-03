@@ -2,43 +2,32 @@ package org.minidb.bplus.fudger;
 
 import org.minidb.bplus.bptree.BPlusConfiguration;
 import org.minidb.bplus.bptree.BPlusTree;
-import org.minidb.bplus.bptree.BPlusTreePerformanceCounter;
+import org.minidb.bplus.bptree.SearchResult;
+import org.minidb.bplus.util.DuplicateValuesException;
 import org.minidb.bplus.util.InvalidBTreeStateException;
-import org.minidb.bplus.util.TestRunner;
 
 import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.Iterator;
+import java.util.LinkedList;
 
 public class Main {
 
     public static void main(String[] args)
-            throws IOException, InvalidBTreeStateException {
-        boolean fastTrials = true;
+            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
         boolean recreateTree = true;
         BPlusConfiguration btconf = new BPlusConfiguration();
-        BPlusTreePerformanceCounter bPerf = new BPlusTreePerformanceCounter(true);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", bPerf);
-
-        //int tlen = 20000;
-        //long skey = 0;
-        //long eKey = tlen;
-        //String val = "1234567890";
-        //boolean unique = true;
-        bt.printCurrentConfiguration();
-//        if(recreateTree) {
-//            Utilities.sequentialAddToTree(skey, eKey,
-//                    val, unique, bt);
-//            bPerf.printTotalStatistics();
-//        }
-
-        if(fastTrials)
-            {TestRunner.runDefaultTrialsFast(bPerf);}
-        else
-            {TestRunner.runBench(bPerf);}
-
-        System.out.println("\n -- Total pages in the end: " + bt.getTotalTreePages());
+        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data", new Type[]{int.class});
+        bt.insertKey(1, 12L);
+        SearchResult ans = bt.searchKey(1, false);
+        LinkedList<Long> values = ans.getValues();
+        Iterator<Long> it = values.iterator();
+        while (it.hasNext())
+        {
+            System.out.println(it.next());
+        }
         // finally close it.
         bt.commitTree();
-
     }
 
 }

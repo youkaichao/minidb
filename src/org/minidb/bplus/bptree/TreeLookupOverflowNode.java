@@ -31,13 +31,11 @@ class TreeLookupOverflowNode extends TreeNode {
      *
      * @param r     an *already* open pointer which points to our B+ Tree file
      * @param conf  B+ Tree configuration
-     * @param bPerf instance of performance counter class
      * @throws IOException is thrown when an I/O operation fails
      */
     @Override
     public void writeNode(RandomAccessFile r,
-                          BPlusConfiguration conf,
-                          BPlusTreePerformanceCounter bPerf)
+                          BPlusConfiguration conf)
             throws IOException {
 
         // account for the header page as well

@@ -37,15 +37,15 @@ public class Utilities {
      * @param bt B+ Tree instance
      * @throws IOException is thrown when an I/O operation fails
      */
-    public static void sequentialAddToTree(long from, long to, String val,
+    public static void sequentialAddToTree(long from, long to, long val,
                                            boolean unique, BPlusTree bt)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
         long div = (to - from) / 10;
         for(long i = from; i < to; i++) {
             if (i % div == 0) {
                 System.out.println("Currently at: " + ((double) i / to) * 100 + " %");
             }
-            bt.insertKey(i, val, unique);
+            bt.insertKey(i, val);
         }
         System.out.println("Done!\n");
     }
@@ -64,7 +64,7 @@ public class Utilities {
      */
     public static LinkedList<Long> fuzzyAddToTree(int from, int to,
                                       boolean unique, BPlusTree bt)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
 
         if(from < 0 || to < from)
             {throw new IllegalArgumentException("range must > 0 and from > to");}
@@ -73,7 +73,7 @@ public class Utilities {
         if(!unique) {
             for(long i = from; i < to; i++) {
                 l.push((long) randInt(from, to));
-                bt.insertKey(l.peekFirst(), l.peekFirst().toString(), false);
+                bt.insertKey(l.peekFirst(), l.peekFirst());
             }
             //writeObjectToFile(l, "lfileex.ser");
         } else {
@@ -86,7 +86,7 @@ public class Utilities {
 
             // add them
             for (Long key : l)
-                {bt.insertKey(key, key.toString(), true);}
+                {bt.insertKey(key, key);}
 
         }
 
@@ -107,11 +107,11 @@ public class Utilities {
     @SuppressWarnings("unused")
     public static LinkedList<Long> addToTreeFromList(String filename, boolean unique,
                                                      BPlusTree bt)
-            throws IOException, InvalidBTreeStateException, ClassNotFoundException {
+            throws IOException, InvalidBTreeStateException, ClassNotFoundException, DuplicateValuesException {
 
         LinkedList<Long> l = loadListFromFile(filename);
         for (Long key : l)
-            {bt.insertKey(key, key.toString(), unique);}
+            {bt.insertKey(key, key);}
         return(l);
     }
 

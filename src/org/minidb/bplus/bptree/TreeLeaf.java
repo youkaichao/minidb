@@ -15,7 +15,7 @@ import java.util.LinkedList;
 class TreeLeaf extends TreeNode {
     private long nextPagePointer;           // pointer to next leaf in the list
     private long prevPagePointer;           // pointer to prev leaf in the list
-    private LinkedList<String> valueList;   // satellite data list
+    public LinkedList<Long> valueList;   // satellite data list
     private LinkedList<Long> overflowList;  // overflow pointer list
 
     /**
@@ -44,7 +44,7 @@ class TreeLeaf extends TreeNode {
     void addLastToOverflowList(long value)
         {overflowList.addLast(value);}
 
-    void addLastToValueList(String value)
+    void addLastToValueList(long value)
         {valueList.addLast(value);}
 
     long getOverflowPointerAt(int index)
@@ -65,19 +65,19 @@ class TreeLeaf extends TreeNode {
     long getLastOverflowPointer()
         {return(overflowList.getLast());}
 
-    void addToValueList(int index, String value)
+    void addToValueList(int index, long value)
         {valueList.add(index, value);}
 
-    String getValueAt(int index)
+    long getValueAt(int index)
         {return valueList.get(index);}
 
-    void pushToValueList(String value)
+    void pushToValueList(long value)
         {valueList.push(value);}
 
-    String popValue()
+    long popValue()
         {return valueList.pop();}
 
-    String removeLastValue()
+    long removeLastValue()
         {return  valueList.removeLast();}
 
     long getNextPagePointer()
@@ -93,11 +93,11 @@ class TreeLeaf extends TreeNode {
         this.prevPagePointer = prevPagePointer;
     }
 
-    String removeEntryAt(int index, BPlusConfiguration conf)
+    long removeEntryAt(int index, BPlusConfiguration conf)
             throws InvalidBTreeStateException {
         keyArray.remove(index);
         overflowList.remove(index);
-        String s = valueList.remove(index);
+        long s = valueList.remove(index);
         decrementCapacity(conf);
         return(s);
     }
@@ -116,13 +116,12 @@ class TreeLeaf extends TreeNode {
      * @throws IOException is thrown when an I/O operation fails
      */
     @Override
-    public void writeNode(RandomAccessFile r, BPlusConfiguration conf,
-                          BPlusTreePerformanceCounter bPerf)
+    public void writeNode(RandomAccessFile r, BPlusConfiguration conf)
             throws IOException {
 
         // update root index in the file
         if(this.isRoot()) {
-            r.seek(conf.getHeaderSize()-8L);
+            r.seek(conf.headerSize-8L);
             r.writeLong(getPageIndex());
         }
 
@@ -145,14 +144,12 @@ class TreeLeaf extends TreeNode {
         for(int i = 0; i < getCurrentCapacity(); i++) {
             r.writeLong(getKeyAt(i));
             r.writeLong(getOverflowPointerAt(i));
-            r.write(valueList.get(i).getBytes(StandardCharsets.UTF_8));
+            r.writeLong(valueList.get(i));
         }
 
         // annoying correction
-        if(r.length() < getPageIndex()+conf.getPageSize())
-            {r.setLength(getPageIndex()+conf.getPageSize());}
-
-        bPerf.incrementTotalLeafNodeWrites();
+        if(r.length() < getPageIndex()+conf.pageSize)
+            {r.setLength(getPageIndex()+conf.pageSize);}
     }
 
     @Override

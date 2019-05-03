@@ -10,20 +10,20 @@ package org.minidb.bplus.bptree;
 @SuppressWarnings({"WeakerAccess", "unused"})
 public class BPlusConfiguration {
 
-    private int pageSize;           // page size (in bytes)
-    private int keySize;            // key size (in bytes)
-    private int entrySize;          // entry size (in bytes)
-    private int treeDegree;               // tree degree (internal node degree)
-    private int headerSize;               // header size (in bytes)
-    private int leafHeaderSize;           // leaf node header size (in bytes)
-    private int internalNodeHeaderSize;   // internal node header size (in bytes)
-    private int lookupOverflowHeaderSize; // lookup overflow page header size
-    private int lookupOverflowPageDegree; // lookup overflow page degree
-    private int leafNodeDegree;           // leaf node degree
-    private int overflowPageDegree;       // overflow page degree
-    private int lookupPageSize;           // look up page size
-    private int conditionThreshold;       // iterations to perform conditioning
-
+    public int pageSize;           // page size (in bytes)
+    public int keySize;            // key size (in bytes)
+    public int entrySize;          // entry size (in bytes)
+    public int treeDegree;               // tree degree (internal node degree)
+    public int headerSize;               // header size (in bytes)
+    public int leafHeaderSize;           // leaf node header size (in bytes)
+    public int internalNodeHeaderSize;   // internal node header size (in bytes)
+    public int lookupOverflowHeaderSize; // lookup overflow page header size
+    public int lookupOverflowPageDegree; // lookup overflow page degree
+    public int leafNodeDegree;           // leaf node degree
+    public int overflowPageDegree;       // overflow page degree
+    public int lookupPageSize;           // look up page size
+    public int conditionThreshold;       // iterations to perform conditioning
+    public boolean unique;               // whether one key can have multiple values
     /**
      *
      *  Default constructor which initializes all
@@ -31,7 +31,7 @@ public class BPlusConfiguration {
      *
      */
     public BPlusConfiguration() {
-        basicParams(1024, 8, 20);
+        basicParams(1024, 8, 8);
         initializeCommon(pageSize, keySize, entrySize, 1000);
     }
 
@@ -41,7 +41,7 @@ public class BPlusConfiguration {
      * @param pageSize page size (in bytes)
      */
     public BPlusConfiguration(int pageSize) {
-        basicParams(pageSize, 8, 20);
+        basicParams(pageSize, 8, 8);
         initializeCommon(pageSize, keySize, entrySize, 1000);
     }
 
@@ -50,7 +50,7 @@ public class BPlusConfiguration {
      *
      * @param pageSize page size (default is 1024 bytes)
      * @param keySize key size (default is long [8 bytes])
-     * @param entrySize satellite data (default is 20 bytes)
+     * @param entrySize satellite data (default is 8 bytes)
      */
     public BPlusConfiguration(int pageSize, int keySize,
                               int entrySize) {
@@ -134,22 +134,9 @@ public class BPlusConfiguration {
             {throw new IllegalArgumentException("Can't have a degree < 2");}
     }
 
-    public int getPageSize()
-        {return pageSize;}
-
-    public int getEntrySize() {
-        return entrySize;
-    }
-
     public int getFirstLookupPageElements() {
         return lookupPageSize / keySize;
     }
-
-    public int getTreeDegree()
-        {return treeDegree;}
-
-    public int getOverflowPageDegree()
-        {return(overflowPageDegree);}
 
     public int getMaxInternalNodeCapacity()
         {return((2*treeDegree) - 1);}
@@ -171,36 +158,14 @@ public class BPlusConfiguration {
     public int getMinInternalNodeCapacity()
         {return(treeDegree-1);}
 
-    public int getKeySize()
-        {return keySize;}
-
-    public int getLeafNodeDegree()
-        {return leafNodeDegree;}
-
     public int getLookupPageDegree()
         {return(pageSize/keySize);}
-
-    public int getLookupPageSize()
-        {return(lookupPageSize);}
 
     public long getLookupPageOffset()
         {return(pageSize-lookupPageSize);}
 
-    public int getConditionThreshold()
-        {return(conditionThreshold);}
-
-    public void setConditionThreshold(int conditionThreshold)
-        {this.conditionThreshold = conditionThreshold;}
-
-    public int getHeaderSize()
-        {return(headerSize);}
-
     public int getPageCountOffset() {
         return (headerSize - 16);
-    }
-
-    public int getLookupOverflowHeaderSize() {
-        return (lookupOverflowHeaderSize);
     }
 
     public void printConfiguration() {
@@ -209,26 +174,26 @@ public class BPlusConfiguration {
         System.out.println("Key size: " + keySize + " (in bytes)");
         System.out.println("Entry size: " + entrySize + " (in bytes)");
         System.out.println("File header size: " + headerSize + " (in bytes)");
-        System.out.println("Lookup space size: " + getLookupPageSize() +
+        System.out.println("Lookup space size: " + lookupPageSize +
                 " (in bytes)");
         System.out.println("\nInternal Node Degree: " +
-                getTreeDegree() +
+                treeDegree +
                 "\n\t Min cap: " + getMinInternalNodeCapacity() +
                 "\n\t Max cap: " + getMaxInternalNodeCapacity() +
                 "\n\t Total header bytes: " + internalNodeHeaderSize);
 
         System.out.println("\nLeaf Node Degree: " +
-                getLeafNodeDegree() +
+                leafNodeDegree +
                 "\n\t Min cap: " + getMinLeafNodeCapacity() +
                 "\n\t Max cap: " + getMaxLeafNodeCapacity() +
                 "\n\t Total header bytes: " + leafHeaderSize);
 
         System.out.println("\nOverflow page Degree: " +
-                getOverflowPageDegree() +
+                overflowPageDegree +
                 "\n\tExpected cap: " + getMaxOverflowNodeCapacity());
 
         System.out.println("\nLookup page overflow Degree" +
-                getOverflowPageDegree() +
+                overflowPageDegree +
                 "\n\tExpected cap: " + getMaxInternalNodeCapacity());
     }
 }

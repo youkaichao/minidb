@@ -71,13 +71,12 @@ class TreeInternalNode extends TreeNode {
      * @throws IOException is thrown when an I/O exception is captured.
      */
     @Override
-    public void writeNode(RandomAccessFile r, BPlusConfiguration conf,
-                          BPlusTreePerformanceCounter bPerf)
+    public void writeNode(RandomAccessFile r, BPlusConfiguration conf)
             throws IOException {
 
         // update root index in the file
         if(this.isRoot()) {
-            r.seek(conf.getHeaderSize()-8);
+            r.seek(conf.headerSize-8);
             r.writeLong(getPageIndex());
         }
 
@@ -99,10 +98,8 @@ class TreeInternalNode extends TreeNode {
         r.writeLong(getPointerAt(getCurrentCapacity()));
 
         // annoying correction
-        if(r.length() < getPageIndex()+conf.getPageSize())
-            {r.setLength(getPageIndex()+conf.getPageSize());}
-
-        bPerf.incrementTotalInternalNodeWrites();
+        if(r.length() < getPageIndex()+conf.pageSize)
+            {r.setLength(getPageIndex()+conf.pageSize);}
     }
 
     @Override

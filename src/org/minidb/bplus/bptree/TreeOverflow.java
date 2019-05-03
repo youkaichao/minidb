@@ -15,7 +15,7 @@ import java.util.LinkedList;
 class TreeOverflow extends TreeNode {
 
 
-    private final LinkedList<String> valueList;
+    public final LinkedList<Long> valueList;
     private long nextPagePointer;
     private long prevPagePointer;
 
@@ -35,16 +35,13 @@ class TreeOverflow extends TreeNode {
         this.prevPagePointer = prevPagePointer;
     }
 
-    void pushToValueList(String value)
+    void pushToValueList(long value)
         {valueList.push(value);}
 
-    String removeLastValue()
-        {return(valueList.removeLast());}
-
-    void addToValueList(int index, String value)
+    void addToValueList(int index, long value)
         {valueList.add(index, value);}
 
-    String getValueAt(int index)
+    long getValueAt(int index)
         {return valueList.get(index);}
 
     long getNextPagePointer()
@@ -73,8 +70,7 @@ class TreeOverflow extends TreeNode {
      * @throws IOException is thrown when an I/O operation fails
      */
     @Override
-    public void writeNode(RandomAccessFile r, BPlusConfiguration conf,
-                          BPlusTreePerformanceCounter bPerf)
+    public void writeNode(RandomAccessFile r, BPlusConfiguration conf)
             throws IOException {
         // account for the header page as well.
         r.seek(getPageIndex());
@@ -93,13 +89,11 @@ class TreeOverflow extends TreeNode {
 
         // now write the values
         for(int i = 0; i < getCurrentCapacity(); i++)
-            {r.write(valueList.get(i).getBytes(StandardCharsets.UTF_8));}
+            {r.writeLong(valueList.get(i));}
 
         // annoying correction
-        if(r.length() < getPageIndex()+conf.getPageSize())
-            {r.setLength(getPageIndex()+conf.getPageSize());}
-
-        bPerf.incrementTotalOverflowNodeWrites();
+        if(r.length() < getPageIndex()+conf.pageSize)
+            {r.setLength(getPageIndex()+conf.pageSize);}
     }
 
     @Override

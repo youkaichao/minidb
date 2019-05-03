@@ -4,6 +4,7 @@ import org.minidb.bplus.util.InvalidBTreeStateException;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Type;
 import java.util.InvalidPropertiesFormatException;
 import java.util.LinkedList;
 
@@ -438,8 +439,7 @@ abstract class TreeNode {
      * @param conf B+ Tree configuration
      * @throws IOException is thrown when an I/O operation fails.
      */
-    public abstract void writeNode(RandomAccessFile r, BPlusConfiguration conf,
-                                   BPlusTreePerformanceCounter bPerf)
+    public abstract void writeNode(RandomAccessFile r, BPlusConfiguration conf)
             throws IOException;
 
     /**

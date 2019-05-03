@@ -8,7 +8,7 @@ package org.minidb.bplus.bptree;
 public class KeyValueWrapper {
 
     private final long key;           // key
-    private final String value;       // value
+    private final long value;       // value
 
     /**
      * This is the only constructor... as we only
@@ -16,7 +16,7 @@ public class KeyValueWrapper {
      * @param key the key of (K, V) pair
      * @param value the value of the (K, V) pair
      */
-    public KeyValueWrapper(long key, String value) {
+    public KeyValueWrapper(long key, long value) {
         this.key = key;
         this.value = value;
     }
@@ -25,7 +25,7 @@ public class KeyValueWrapper {
         return key;
     }
 
-    public String getValue() {
+    public long getValue() {
         return value;
     }
 

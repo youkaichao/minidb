@@ -23,7 +23,7 @@
 hs_err_pid*
 
 # data files
-*.bin
+*.data
 
 # build files
 /output/

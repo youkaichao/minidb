@@ -17,7 +17,7 @@ public class SearchResult {
     private final int index;                // index where first key is <= our requested key
     private final boolean found;            // we found the requested key?
     private TreeLeaf leafLoc;               // the leaf which our (K, V) might reside
-    private LinkedList<String> ovfValues;   // linked list in the case of non-unique queries
+    private LinkedList<Long> ovfValues;   // linked list in the case of non-unique queries
 
     /**
      * Constructor for unique queries, hence feed it all the above information
@@ -45,7 +45,7 @@ public class SearchResult {
      * @param index index where the first key is equal with our requested key
      * @param vals the linked list with the values
      */
-    public SearchResult(TreeLeaf leaf, int index, LinkedList<String> vals) {
+    public SearchResult(TreeLeaf leaf, int index, LinkedList<Long> vals) {
         this.leafLoc = leaf;
         this.index = index;
         this.found = true;
@@ -60,7 +60,7 @@ public class SearchResult {
     public void setLeaf(TreeLeaf leaf)
         {this.leafLoc = leaf;}
 
-    public LinkedList<String> getValues()
+    public LinkedList<Long> getValues()
         {return(ovfValues);}
 
     public long getKey()
