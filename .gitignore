@@ -27,6 +27,7 @@ hs_err_pid*
 
 # build files
 /output/
+/target/
 
 # IntelliJ project files
 /.idea/workspace.xml

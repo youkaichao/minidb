@@ -142,7 +142,7 @@ class TreeLeaf extends TreeNode {
 
         // now write the Key/Value pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong(getKeyAt(i));
+            writeKey(r, getKeyAt(i), conf);
             r.writeLong(getOverflowPointerAt(i));
             r.writeLong(valueList.get(i));
         }
@@ -153,7 +153,7 @@ class TreeLeaf extends TreeNode {
     }
 
     @Override
-    public void printNode() {
+    public void printNode(BPlusConfiguration conf) {
         System.out.println("\nPrinting node of type: " + getNodeType().toString() +
                 " with index: " + getPageIndex());
         System.out.println("Current node capacity is: " + getCurrentCapacity());
@@ -163,8 +163,9 @@ class TreeLeaf extends TreeNode {
 
         System.out.println("\nPrinting stored (Key, Value, ovf) tuples:");
         for(int i = 0; i < keyArray.size(); i++) {
-            System.out.print(" (" +
-                    keyArray.get(i).toString() + ", " +
+            System.out.print(" (");
+            TreeNode.printKey(keyArray.get(i), conf);
+            System.out.print(", " +
                     valueList.get(i) + ", " +
                     overflowList.get(i) + ") ");
         }

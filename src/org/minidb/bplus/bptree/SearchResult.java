@@ -63,7 +63,7 @@ public class SearchResult {
     public LinkedList<Long> getValues()
         {return(ovfValues);}
 
-    public long getKey()
+    public Object[] getKey()
         {return(leafLoc.getKeyAt(index));}
 
     public boolean isFound()

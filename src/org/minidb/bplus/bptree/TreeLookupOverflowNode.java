@@ -52,7 +52,7 @@ class TreeLookupOverflowNode extends TreeNode {
 
         // now write the index values
         for (int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong(getKeyAt(i));
+            r.writeLong((Long)getKeyAt(i)[0]);
         }
 
     }
@@ -77,14 +77,14 @@ class TreeLookupOverflowNode extends TreeNode {
     }
 
     @Override
-    public void printNode() {
+    public void printNode(BPlusConfiguration conf) {
         System.out.println("\nPrinting node of type: " + getNodeType().toString() +
                 " with index: " + getPageIndex());
         System.out.println("Current node capacity is: " + getCurrentCapacity());
 
         System.out.println("\nPrinting tuples: \n");
-        for (Long key : keyArray) {
-            System.out.print(key);
+        for (Object[] key : keyArray) {
+            System.out.print((Long)key[0]);
         }
 
         System.out.println("\n");

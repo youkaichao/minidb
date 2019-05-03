@@ -97,7 +97,7 @@ class TreeOverflow extends TreeNode {
     }
 
     @Override
-    public void printNode() {
+    public void printNode(BPlusConfiguration conf) {
         System.out.println("\nPrinting node of type: " + getNodeType().toString() +
                 " with index: " + getPageIndex());
         System.out.println("Current node capacity is: " + getCurrentCapacity());
@@ -106,7 +106,7 @@ class TreeOverflow extends TreeNode {
         System.out.println("Prev pointer (index): " + getPrevPagePointer());
 
         System.out.println("\nPrinting stored values:");
-        for(int i = 0; i < keyArray.size(); i++) {
+        for(int i = 0; i < valueList.size(); i++) {
             System.out.print(" " + valueList.get(i) + " ");
         }
         System.out.println("\n");

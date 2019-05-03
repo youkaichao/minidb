@@ -5,6 +5,7 @@ import org.minidb.bplus.util.InvalidBTreeStateException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.InvalidPropertiesFormatException;
 import java.util.LinkedList;
 
@@ -16,7 +17,7 @@ import java.util.LinkedList;
  */
 @SuppressWarnings("unused")
 abstract class TreeNode {
-    final LinkedList<Long> keyArray;  // key array
+    final LinkedList<Object[]> keyArray;  // key array
     private TreeNodeType nodeType;    // actual node type
     private long pageIndex;           // node page index
     private int currentCapacity;      // current capacity
@@ -186,20 +187,10 @@ abstract class TreeNode {
         }
     }
 
-    /**
-     * Being deleted flag
-     *
-     * @return true if the node is marked to be deleted, false otherwise.
-     */
     public boolean getBeingDeleted() {
         return beingDeleted;
     }
 
-    /**
-     * Set being deleted flag
-     *
-     * @param beingDeleted value to set the flag.
-     */
     void setBeingDeleted(boolean beingDeleted) {
         this.beingDeleted = beingDeleted;
     }
@@ -297,7 +288,7 @@ abstract class TreeNode {
      * @param index the position to get the key
      * @return the key at position
      */
-    long getKeyAt(int index)
+    Object[] getKeyAt(int index)
         {return(keyArray.get(index));}
 
     /**
@@ -322,7 +313,7 @@ abstract class TreeNode {
      * @param index index to set the key
      * @param key key to set in position
      */
-    void setKeyArrayAt(int index, long key)
+    void setKeyArrayAt(int index, Object[] key)
         {keyArray.set(index, key);}
 
     /**
@@ -332,7 +323,7 @@ abstract class TreeNode {
      * @param index index to shift keys and add
      * @param key key to add in position
      */
-    void addToKeyArrayAt(int index, long key)
+    void addToKeyArrayAt(int index, Object[] key)
         {keyArray.add(index, key);}
 
     /**
@@ -340,7 +331,7 @@ abstract class TreeNode {
      *
      * @param key key to push
      */
-    void pushToKeyArray(long key)
+    void pushToKeyArray(Object[] key)
         {keyArray.push(key);}
 
     /**
@@ -348,7 +339,7 @@ abstract class TreeNode {
      *
      * @param key key to add
      */
-    void addLastToKeyArray(long key)
+    void addLastToKeyArray(Object[] key)
         {keyArray.addLast(key);}
 
     /**
@@ -356,7 +347,7 @@ abstract class TreeNode {
      *
      * @return return the last key
      */
-    long getLastKey()
+    Object[] getLastKey()
         {return keyArray.getLast();}
 
     /**
@@ -364,7 +355,7 @@ abstract class TreeNode {
      *
      * @return return the first key value
      */
-    long getFirstKey()
+    Object[] getFirstKey()
         {return keyArray.getFirst();}
 
     /**
@@ -372,7 +363,7 @@ abstract class TreeNode {
      *
      * @return key that is in the head of the array
      */
-    long popKey()
+    Object[] popKey()
         {return keyArray.pop();}
 
     /**
@@ -380,7 +371,7 @@ abstract class TreeNode {
      *
      * @return key that is in the last place of the array
      */
-    long removeLastKey()
+    Object[] removeLastKey()
         {return keyArray.removeLast();}
 
     /**
@@ -389,7 +380,7 @@ abstract class TreeNode {
      * @param index index that points where to remvoe the key
      * @return removed key
      */
-    long removeKeyAt(int index)
+    Object[] removeKeyAt(int index)
         {return(keyArray.remove(index));}
 
     /**
@@ -447,6 +438,85 @@ abstract class TreeNode {
      * Each class must implement it's own printing method.
      *
      */
-    public abstract void printNode();
+    public abstract void printNode(BPlusConfiguration conf);
 
+    /*
+    helper function to write a key consisting of multiple columns
+    * */
+    public static void writeKey(RandomAccessFile r, Object[] key, BPlusConfiguration conf) throws IOException
+    {
+        for(int j = 0; j < conf.types.length; ++j)
+        {
+            if(conf.types[j] == Integer.class)
+            {
+                r.writeInt((Integer)key[j]);
+            }else if(conf.types[j] == Long.class)
+            {
+                r.writeLong((Long)key[j]);
+            }else if(conf.types[j] == Float.class)
+            {
+                r.writeFloat((Float)key[j]);
+            }else if(conf.types[j] == Double.class)
+            {
+                r.writeDouble((Double)key[j]);
+            }else if(conf.types[j] == String.class)
+            {
+                r.write(((String)key[j]).getBytes(StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    /*
+    helper function to read a key consisting of multiple columns
+    * */
+    public static Object[] readKey(RandomAccessFile r, BPlusConfiguration conf) throws IOException
+    {
+        Object[] key = new Object[conf.types.length];
+        for(int j = 0; j < conf.types.length; ++j)
+        {
+            if(conf.types[j] == Integer.class)
+            {
+                key[j] = r.readInt();
+            }else if(conf.types[j] == Long.class)
+            {
+                key[j] = r.readLong();
+            }else if(conf.types[j] == Float.class)
+            {
+                key[j] = r.readFloat();
+            }else if(conf.types[j] == Double.class)
+            {
+                key[j] = r.readDouble();
+            }else if(conf.types[j] == String.class)
+            {
+                //TODO possible not efficient. buffer is copied into the string?
+                byte[] buffer = new byte[conf.sizes[j]];
+                r.read(buffer, 0, conf.sizes[j]);
+                key[j] = new String(buffer, StandardCharsets.UTF_8);
+            }
+        }
+        return key;
+    }
+
+    public static void printKey(Object[] key, BPlusConfiguration conf)
+    {
+        for(int i = 0; i < conf.types.length; ++i)
+        {
+            if(conf.types[i] == Integer.class)
+            {
+                System.out.println((Integer)key[i]);
+            }else if(conf.types[i] == Long.class)
+            {
+                System.out.println((Long)key[i]);
+            }else if(conf.types[i] == Float.class)
+            {
+                System.out.println((Float)key[i]);
+            }else if(conf.types[i] == Double.class)
+            {
+                System.out.println((Double)key[i]);
+            }else if(conf.types[i] == String.class)
+            {
+                System.out.println((String)key[i]);
+            }
+        }
+    }
 }

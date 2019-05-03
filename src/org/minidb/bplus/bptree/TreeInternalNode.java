@@ -2,6 +2,7 @@ package org.minidb.bplus.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 
 
@@ -91,7 +92,7 @@ class TreeInternalNode extends TreeNode {
 
         // now write Key/Pointer pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong(getKeyAt(i));       // Key
+            TreeNode.writeKey(r, getKeyAt(i), conf);// Key
             r.writeLong(getPointerAt(i));   // Pointer
         }
         // final pointer.
@@ -103,7 +104,7 @@ class TreeInternalNode extends TreeNode {
     }
 
     @Override
-    public void printNode() {
+    public void printNode(BPlusConfiguration conf) {
         System.out.println("\nPrinting node of type: " +
                 getNodeType().toString() + " with index: " +
                 getPageIndex());
@@ -112,13 +113,14 @@ class TreeInternalNode extends TreeNode {
                 getCurrentCapacity());
 
         System.out.println("\nPrinting stored Keys:");
-        for(Long i : keyArray)
-            {System.out.print("\t" + i.toString() + " ");}
+        for(Object[] each : keyArray)
+        {
+            TreeNode.printKey(each, conf);
+        }
         System.out.println("\nPrinting stored Pointers");
         for(Long i : pointerArray)
             {System.out.print(" " + i.toString() + " ");}
         System.out.println();
     }
-
 
 }

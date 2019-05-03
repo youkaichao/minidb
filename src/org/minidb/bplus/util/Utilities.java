@@ -28,92 +28,92 @@ public class Utilities {
         return rand.nextInt((max - min) + 1) + min;
     }
 
-    /**
-     * Helper to add stuff to the tree
-     * @param from key to start
-     * @param to key to end
-     * @param val value to tie with the keys
-     * @param unique allow duplicates?
-     * @param bt B+ Tree instance
-     * @throws IOException is thrown when an I/O operation fails
-     */
-    public static void sequentialAddToTree(long from, long to, long val,
-                                           boolean unique, BPlusTree bt)
-            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
-        long div = (to - from) / 10;
-        for(long i = from; i < to; i++) {
-            if (i % div == 0) {
-                System.out.println("Currently at: " + ((double) i / to) * 100 + " %");
-            }
-            bt.insertKey(i, val);
-        }
-        System.out.println("Done!\n");
-    }
+//    /**
+//     * Helper to add stuff to the tree
+//     * @param from key to start
+//     * @param to key to end
+//     * @param val value to tie with the keys
+//     * @param unique allow duplicates?
+//     * @param bt B+ Tree instance
+//     * @throws IOException is thrown when an I/O operation fails
+//     */
+//    public static void sequentialAddToTree(long from, long to, long val,
+//                                           boolean unique, BPlusTree bt)
+//            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
+//        long div = (to - from) / 10;
+//        for(long i = from; i < to; i++) {
+//            if (i % div == 0) {
+//                System.out.println("Currently at: " + ((double) i / to) * 100 + " %");
+//            }
+//            bt.insertKey(i, val);
+//        }
+//        System.out.println("Done!\n");
+//    }
 
-    /**
-     * Add a random sequence of numbers in the tree using unique
-     * or discrete values for the key.
-     *
-     * @param from starting range (>= 0)
-     * @param to ending range
-     * @param unique use unique values flag
-     * @param bt tree instance to add the values
-     * @return the list of the values in reverse order of insertion
-     * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
-     */
-    public static LinkedList<Long> fuzzyAddToTree(int from, int to,
-                                      boolean unique, BPlusTree bt)
-            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
+//    /**
+//     * Add a random sequence of numbers in the tree using unique
+//     * or discrete values for the key.
+//     *
+//     * @param from starting range (>= 0)
+//     * @param to ending range
+//     * @param unique use unique values flag
+//     * @param bt tree instance to add the values
+//     * @return the list of the values in reverse order of insertion
+//     * @throws IOException is thrown when an I/O operation fails
+//     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+//     */
+//    public static LinkedList<Long> fuzzyAddToTree(int from, int to,
+//                                      boolean unique, BPlusTree bt)
+//            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
+//
+//        if(from < 0 || to < from)
+//            {throw new IllegalArgumentException("range must > 0 and from > to");}
+//
+//        LinkedList<Long> l = new LinkedList<>();
+//        if(!unique) {
+//            for(long i = from; i < to; i++) {
+//                l.push((long) randInt(from, to));
+//                bt.insertKey(l.peekFirst(), l.peekFirst());
+//            }
+//            //writeObjectToFile(l, "lfileex.ser");
+//        } else {
+//            //throw new InvalidBTreeStateException("Not yet implemented");
+//            for(long i = from; i < to; i++)
+//                {l.add(i);}
+//
+//            // randomize
+//            Collections.shuffle(l);
+//
+//            // add them
+//            for (Long key : l)
+//                {bt.insertKey(key, key);}
+//
+//        }
+//
+//        return(l);
+//    }
 
-        if(from < 0 || to < from)
-            {throw new IllegalArgumentException("range must > 0 and from > to");}
-
-        LinkedList<Long> l = new LinkedList<>();
-        if(!unique) {
-            for(long i = from; i < to; i++) {
-                l.push((long) randInt(from, to));
-                bt.insertKey(l.peekFirst(), l.peekFirst());
-            }
-            //writeObjectToFile(l, "lfileex.ser");
-        } else {
-            //throw new InvalidBTreeStateException("Not yet implemented");
-            for(long i = from; i < to; i++)
-                {l.add(i);}
-
-            // randomize
-            Collections.shuffle(l);
-
-            // add them
-            for (Long key : l)
-                {bt.insertKey(key, key);}
-
-        }
-
-        return(l);
-    }
-
-    /**
-     * Add values to a B+ Tree from a file
-     *
-     * @param filename file to load
-     * @param unique unique values?
-     * @param bt tree to add the values
-     * @return the list of the values in order of insertion
-     * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
-     * @throws ClassNotFoundException is thrown when the reflection is not able to find the correct class.
-     */
-    @SuppressWarnings("unused")
-    public static LinkedList<Long> addToTreeFromList(String filename, boolean unique,
-                                                     BPlusTree bt)
-            throws IOException, InvalidBTreeStateException, ClassNotFoundException, DuplicateValuesException {
-
-        LinkedList<Long> l = loadListFromFile(filename);
-        for (Long key : l)
-            {bt.insertKey(key, key);}
-        return(l);
-    }
+//    /**
+//     * Add values to a B+ Tree from a file
+//     *
+//     * @param filename file to load
+//     * @param unique unique values?
+//     * @param bt tree to add the values
+//     * @return the list of the values in order of insertion
+//     * @throws IOException is thrown when an I/O operation fails
+//     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+//     * @throws ClassNotFoundException is thrown when the reflection is not able to find the correct class.
+//     */
+//    @SuppressWarnings("unused")
+//    public static LinkedList<Long> addToTreeFromList(String filename, boolean unique,
+//                                                     BPlusTree bt)
+//            throws IOException, InvalidBTreeStateException, ClassNotFoundException, DuplicateValuesException {
+//
+//        LinkedList<Long> l = loadListFromFile(filename);
+//        for (Long key : l)
+//            {bt.insertKey(key, key);}
+//        return(l);
+//    }
 
     /**
      * Write object to file (used for testing certain key-sequences)

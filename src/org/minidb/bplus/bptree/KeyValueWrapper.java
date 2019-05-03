@@ -7,7 +7,7 @@ package org.minidb.bplus.bptree;
 @SuppressWarnings({"WeakerAccess", "unused"})
 public class KeyValueWrapper {
 
-    private final long key;           // key
+    private final Object[] key;           // key
     private final long value;       // value
 
     /**
@@ -16,12 +16,12 @@ public class KeyValueWrapper {
      * @param key the key of (K, V) pair
      * @param value the value of the (K, V) pair
      */
-    public KeyValueWrapper(long key, long value) {
+    public KeyValueWrapper(Object[] key, long value) {
         this.key = key;
         this.value = value;
     }
 
-    public long getKey() {
+    public Object[] getKey() {
         return key;
     }
 

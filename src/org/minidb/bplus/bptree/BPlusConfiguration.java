@@ -1,5 +1,14 @@
 package org.minidb.bplus.bptree;
 
+import org.minidb.bplus.util.UnknownColumnTypeException;
+
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 /**
  *
  * Class that stores all of the configuration parameters for our B+ Tree.
@@ -24,85 +33,41 @@ public class BPlusConfiguration {
     public int lookupPageSize;           // look up page size
     public int conditionThreshold;       // iterations to perform conditioning
     public boolean unique;               // whether one key can have multiple values
-    /**
-     *
-     *  Default constructor which initializes all
-     *  settings to the predefined defaults.
-     *
-     */
-    public BPlusConfiguration() {
-        basicParams(1024, 8, 8);
-        initializeCommon(pageSize, keySize, entrySize, 1000);
-    }
+    public final Type[] types; // Keys may contain multiple columns. `types` tracks the type for each column
+    // use Integer/Float etc for primitive types
+    public final int[] sizes; // size of each key type (in bytes)
+    public final String[] colNames; // name of each column
 
     /**
-     * Overloaded constructor allows page size adjustments
-     *
-     * @param pageSize page size (in bytes)
-     */
-    public BPlusConfiguration(int pageSize) {
-        basicParams(pageSize, 8, 8);
-        initializeCommon(pageSize, keySize, entrySize, 1000);
-    }
-
-    /**
-     * Overloaded constructor
-     *
      * @param pageSize page size (default is 1024 bytes)
-     * @param keySize key size (default is long [8 bytes])
      * @param entrySize satellite data (default is 8 bytes)
+     * @param conditionThreshold threshold to perform file conditioning (default is 1000)
      */
-    public BPlusConfiguration(int pageSize, int keySize,
-                              int entrySize) {
-        basicParams(pageSize, keySize, entrySize);
-        initializeCommon(pageSize, keySize, entrySize, 1000);
-    }
-
-    /**
-     * Overloaded constructor
-     *
-     * @param pageSize           page size (default is 1024 bytes)
-     * @param keySize            key size (default is long [8 bytes])
-     * @param entrySize          satellite data (default is 20 bytes)
-     * @param conditionThreshold threshold to perform file conditioning
-     */
-    @SuppressWarnings("unused")
-    public BPlusConfiguration(int pageSize, int keySize,
-                              int entrySize, int conditionThreshold) {
-        basicParams(pageSize, keySize, entrySize);
-        initializeCommon(pageSize, keySize, entrySize, conditionThreshold);
-    }
-
-    /**
-     * Set up the basic parameters of the tree
-     *
-     * @param pageSize  page size (default is 1024 bytes)
-     * @param keySize   key size (default is long [8 bytes])
-     * @param entrySize satellite data (default is 20 bytes)
-     */
-    private void basicParams(int pageSize, int keySize, int entrySize) {
+    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames, int conditionThreshold) throws UnknownColumnTypeException {
+        this.colNames = colNames;
+        this.types = types;
+        for(Type each : types)
+        {
+            if(each != Integer.class && each != Long.class && each != Float.class && each != Double.class && each != String.class)
+            {
+                throw new UnknownColumnTypeException(String.format("Type (%s) not supported!", each.getTypeName()));
+            }
+        }
+        this.sizes = sizes;
+        keySize = 0;
+        for(int each : sizes)
+        {
+            keySize += each;
+        }
         this.pageSize = pageSize;   // page size (in bytes)
         this.entrySize = entrySize; // entry size (in bytes)
-        this.keySize = keySize;     // key size (in bytes)
-    }
-
-    /**
-     * Common method to initialize constructor parameters
-     *
-     * @param pageSize page size (default is 1024 bytes)
-     * @param keySize key size (default is long [8 bytes])
-     * @param entrySize satellite data (default is 20 bytes)
-     * @param conditionThreshold the number of iterations before file conditioning
-     */
-    private void initializeCommon(int pageSize, int keySize,
-                                  int entrySize, int conditionThreshold) {
+        this.conditionThreshold = conditionThreshold;       // iterations for conditioning
         this.headerSize =                                   // header size in bytes
                 (Integer.SIZE * 4 + 4 * Long.SIZE) / 8;
         this.internalNodeHeaderSize = (Short.SIZE + Integer.SIZE) / 8; // 6 bytes
         this.leafHeaderSize = (Short.SIZE + 2 * Long.SIZE + Integer.SIZE) / 8; // 22 bytes
         this.lookupOverflowHeaderSize = 14;
         this.lookupPageSize = pageSize - headerSize;        // lookup page size
-        this.conditionThreshold = conditionThreshold;       // iterations for conditioning
         // now calculate the tree degree
         this.treeDegree = calculateDegree(2*keySize, internalNodeHeaderSize);
         // leaf & overflow have the same header size.
@@ -195,5 +160,93 @@ public class BPlusConfiguration {
         System.out.println("\nLookup page overflow Degree" +
                 overflowPageDegree +
                 "\n\tExpected cap: " + getMaxInternalNodeCapacity());
+    }
+
+    /*
+    compare function with short-cut evaluation.
+    * */
+    private boolean compare(Object[] key1, Object[] key2, BiFunction<Integer, Integer, Boolean> func, boolean finalValue)
+    {
+        for(int j = 0; j < types.length; ++j)
+        {
+            if(types[j] == Integer.class)
+            {
+                int ans = Integer.compare((Integer)key1[j], (Integer)key2[j]);
+                if(ans == 0)
+                {
+                    continue;
+                }
+                return func.apply(ans, 0);
+            }else if(types[j] == Long.class)
+            {
+                int ans = Long.compare((Long)key1[j], (Long)key2[j]);
+                if(ans == 0)
+                {
+                    continue;
+                }
+                return func.apply(ans, 0);
+            }else if(types[j] == Float.class)
+            {
+                int ans = Float.compare((Float)key1[j], (Float)key2[j]);
+                if(ans == 0)
+                {
+                    continue;
+                }
+                return func.apply(ans, 0);
+            }else if(types[j] == Double.class)
+            {
+                int ans = Double.compare((Double)key1[j], (Double)key2[j]);
+                if(ans == 0)
+                {
+                    continue;
+                }
+                return func.apply(ans, 0);
+            }else if(types[j] == String.class)
+            {
+                int ans = ((String)key1[j]).compareTo((String)key2[j]);
+                if(ans == 0)
+                {
+                    continue;
+                }
+                return func.apply(ans, 0);
+            }
+        }
+        // every objects are equal
+        return finalValue;
+    }
+
+    // > op
+    public boolean gt(Object[] key1, Object[] key2)
+    {
+        return compare(key1, key2, (Integer x, Integer y) -> x > y, false);
+    }
+
+    // >= op
+    public boolean ge(Object[] key1, Object[] key2)
+    {
+        return compare(key1, key2, (Integer x, Integer y) -> x > y, true);
+    }
+
+    // < op
+    public boolean lt(Object[] key1, Object[] key2)
+    {
+        return compare(key1, key2, (Integer x, Integer y) -> x < y, false);
+    }
+    // <= op
+    public boolean le(Object[] key1, Object[] key2)
+    {
+        return compare(key1, key2, (Integer x, Integer y) -> x < y, true);
+    }
+
+    // != op
+    public boolean neq(Object[] key1, Object[] key2)
+    {
+        return compare(key1, key2, (Integer x, Integer y) -> !x.equals(y), false);
+    }
+
+    // == op
+    public boolean eq(Object[] key1, Object[] key2)
+    {
+        return !neq(key1, key2);
     }
 }
