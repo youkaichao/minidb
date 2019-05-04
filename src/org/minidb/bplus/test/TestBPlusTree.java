@@ -37,7 +37,7 @@ public class TestBPlusTree {
     }
 
     @Test
-    public void testInsert()
+    public void testDuplicateInsert()
             throws Exception, IOException, MiniDBException{
         boolean recreateTree = true;
         Type[] types = new Type[]{Integer.class, Double.class, String.class};
@@ -65,7 +65,32 @@ public class TestBPlusTree {
     }
 
     @Test
-    public void testDelete()
+    public void testUniqueInsert()
+            throws Exception, IOException, MiniDBException{
+        boolean recreateTree = true;
+        Type[] types = new Type[]{Integer.class, Double.class, String.class};
+        int[] sizes = new int[]{4, 8, 10};
+        String[] colNames = new String[]{"a", "b", "c"};
+        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
+        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
+        bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
+        bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
+        try{
+            bt.insertPair(new Object[]{100, 200.0, "12 "}, 13L);
+            throw new Exception("wrong!");
+        }catch (MiniDBException e)
+        {
+        }
+        assertEqual(bt, new Object[]{100, 200.0, "9"}, new Long[]{254L});
+        assertEqual(bt, new Object[]{100, 200.0, "120"}, new Long[]{0L});
+        assertEqual(bt, new Object[]{100, 200.0, "12"}, new Long[]{12L});
+        assertEqual(bt, new Object[]{100, 200.0, "xs"}, new Long[]{});
+//        bt.commitTree();
+    }
+
+    @Test
+    public void testDuplicateDelete()
             throws Exception, IOException, MiniDBException{
         boolean recreateTree = true;
         Type[] types = new Type[]{Integer.class, Double.class, String.class};
@@ -93,7 +118,32 @@ public class TestBPlusTree {
     }
 
     @Test
-    public void testUpdate()
+    public void testUniqueDelete()
+            throws Exception, IOException, MiniDBException{
+        boolean recreateTree = true;
+        Type[] types = new Type[]{Integer.class, Double.class, String.class};
+        int[] sizes = new int[]{4, 8, 10};
+        String[] colNames = new String[]{"a", "b", "c"};
+        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
+        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
+        bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
+        bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
+        // delete an existing pair
+        Assert.assertTrue(bt.deletePair(new Object[]{100, 200.0, "9"}, -1L));
+        Assert.assertFalse(bt.deletePair(new Object[]{100, 200.0, "9"}, -1L));
+        // delete a pair that does not exist
+        Assert.assertFalse(bt.deletePair(new Object[]{100, 200.0, "xs"}, -1L));
+        // check these searches are correct
+        assertEqual(bt, new Object[]{100, 200.0, "9"}, new Long[]{});
+        assertEqual(bt, new Object[]{100, 200.0, "120"}, new Long[]{0L});
+        assertEqual(bt, new Object[]{100, 200.0, "12"}, new Long[]{12L});
+        assertEqual(bt, new Object[]{100, 200.0, "xs"}, new Long[]{});
+//        bt.commitTree();
+    }
+
+    @Test
+    public void testDuplicateUpdate()
             throws Exception, IOException, MiniDBException{
         boolean recreateTree = true;
         Type[] types = new Type[]{Integer.class, Double.class, String.class};
@@ -111,12 +161,38 @@ public class TestBPlusTree {
         Assert.assertTrue(bt.updatePair(new Object[]{100, 200.0, "12"}, 12L, 99L));
         // update an existing pair to the same value
         Assert.assertTrue(bt.updatePair(new Object[]{100, 200.0, "12"}, 99L, 99L));
-        // delete a pair that does not exist
+        // update a pair that does not exist
         Assert.assertFalse(bt.updatePair(new Object[]{100, 200.0, "xs"}, 255L, -1L));
         // check these searches are correct
         assertEqual(bt, new Object[]{100, 200.0, "9"}, new Long[]{254L, 255L});
         assertEqual(bt, new Object[]{100, 200.0, "120"}, new Long[]{0L});
         assertEqual(bt, new Object[]{100, 200.0, "12"}, new Long[]{99L, 13L, 15L});
+        assertEqual(bt, new Object[]{100, 200.0, "xs"}, new Long[]{});
+//        bt.commitTree();
+    }
+
+    @Test
+    public void testUniqueUpdate()
+            throws Exception, IOException, MiniDBException{
+        boolean recreateTree = true;
+        Type[] types = new Type[]{Integer.class, Double.class, String.class};
+        int[] sizes = new int[]{4, 8, 10};
+        String[] colNames = new String[]{"a", "b", "c"};
+        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
+        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
+        bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
+        bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
+        // update an existing pair to a different value
+        Assert.assertTrue(bt.updatePair(new Object[]{100, 200.0, "12"}, -1L, 99L));
+        // update an existing pair to the same value
+        Assert.assertTrue(bt.updatePair(new Object[]{100, 200.0, "12"}, -1L, 99L));
+        // update a pair that does not exist
+        Assert.assertFalse(bt.updatePair(new Object[]{100, 200.0, "xs"}, 255L, -1L));
+
+        assertEqual(bt, new Object[]{100, 200.0, "9"}, new Long[]{254L});
+        assertEqual(bt, new Object[]{100, 200.0, "120"}, new Long[]{0L});
+        assertEqual(bt, new Object[]{100, 200.0, "12"}, new Long[]{99L});
         assertEqual(bt, new Object[]{100, 200.0, "xs"}, new Long[]{});
 //        bt.commitTree();
     }

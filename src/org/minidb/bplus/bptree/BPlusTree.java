@@ -707,7 +707,8 @@ public class BPlusTree {
      * delete or update an existing pair.
      * It makes update faster than deleting and inserting, as well as sharing much code with deletion.
      * @param delete whether to delete or update.
-     * @param newValue useful only when `delete == true`.
+     * @param value useful if `not conf.unique`. (if `conf.unique`, the `key` is enough to identify the pair)
+     * @param newValue useful only when `delete == false` (which means update).
      * @return whether the deletion or update is successful
      * */
     private boolean deleteOrUpdatePair(Object[] key, long value, long newValue, boolean delete)
@@ -721,6 +722,17 @@ public class BPlusTree {
         }
         TreeLeaf l = ans.getKey();
         Integer i = ans.getValue();
+        if(conf.unique)
+        {// the key is enough to identify the pair. `value` is useless
+            if(delete)
+            {
+                l.removeEntryAt(i, conf);
+            }else{
+                l.valueList.set(i, newValue);
+            }
+            l.writeNode(treeFile, conf);
+            return true;
+        }
 
         long savedValue = l.getValueAt(i);
         if(savedValue == value)
@@ -729,7 +741,7 @@ public class BPlusTree {
             {
                 long ovfpointer = l.getOverflowPointerAt(i);
                 if(ovfpointer == -1)
-                {// the index is unique (so there are no overflow pages) or there is only one value for the key. delete the (key, value) pair.
+                {//there is only one value for the key. delete the (key, value) pair.
                     l.removeEntryAt(i, conf);
                 }else {// the index is not unique and there are multiple values.
                     // delete one value and read a value from the overflow page.
