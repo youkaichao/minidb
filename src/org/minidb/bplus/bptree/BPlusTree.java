@@ -6,6 +6,8 @@ import org.minidb.exception.MiniDBException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.InvalidPropertiesFormatException;
 import java.util.Iterator;
@@ -53,12 +55,14 @@ public class BPlusTree {
      * @throws MiniDBException
      * */
     @SuppressWarnings("unused")
-    public void insertKey(Object[] key, long value)
+    public void insertPair(Object[] key, long value)
             throws IOException, MiniDBException,
             IllegalStateException {
 
         if(root == null)
             {throw new IllegalStateException("Can't insert to null tree");}
+
+        padKey(key);
 
         // check if our root is full
         if(root.isFull(conf)) {
@@ -576,7 +580,8 @@ public class BPlusTree {
     @SuppressWarnings("unused")
     public SearchResult searchKey(Object[] key, boolean unique)
             throws IOException, MiniDBException {
-        return(searchKey(this.root, key, unique));
+        padKey(key);
+        return searchKey(this.root, key, unique);
     }
 
     /**
@@ -657,8 +662,10 @@ public class BPlusTree {
     throws IOException, MiniDBException  {
         if(root.isEmpty()) {
             return false;
-        } else
-            {return(deleteEntry(root, null, -1, -1, key, value));}
+        } else{
+            padKey(key);
+            return(deleteEntry(root, null, -1, -1, key, value));
+        }
     }
 
     /**
@@ -2309,6 +2316,28 @@ public class BPlusTree {
         return(s);
     }
 
+    private static String padString(String arg, int nBytes) throws MiniDBException
+    {
+        int size = arg.getBytes(StandardCharsets.UTF_8).length;
+        if(size > nBytes)
+        {
+            throw new MiniDBException(String.format(MiniDBException.StringLengthOverflow, nBytes, arg, size));
+        }
+        if(size == nBytes)
+        {
+            return arg;
+        }
+        return arg + new String(new char[nBytes - size]).replace('\0', ' ');
+    }
+
+    private Object[] padKey(Object[] key) throws MiniDBException
+    {
+        for (Integer i : conf.strColIndexes)
+        {
+            key[i] = padString((String)key[i], conf.sizes[i]);
+        }
+        return key;
+    }
 
     private enum Rank {Pred, Succ, PlusOne, Exact}
 

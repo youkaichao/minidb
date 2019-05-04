@@ -5,6 +5,7 @@ import org.minidb.exception.MiniDBException;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -37,6 +38,7 @@ public class BPlusConfiguration {
     // use Integer/Float etc for primitive types
     public final int[] sizes; // size of each key type (in bytes)
     public final String[] colNames; // name of each column
+    public final LinkedList<Integer> strColIndexes; // index of string columns
 
     /**
      * @param pageSize page size (default is 1024 bytes)
@@ -52,6 +54,14 @@ public class BPlusConfiguration {
             if(each != Integer.class && each != Long.class && each != Float.class && each != Double.class && each != String.class)
             {
                 throw new MiniDBException(String.format(MiniDBException.UnknownColumnType, each.getTypeName()));
+            }
+        }
+        strColIndexes = new LinkedList<>();
+        for(int i = 0; i < types.length; ++i)
+        {
+            if(types[i] == String.class)
+            {
+                strColIndexes.addLast(i);
             }
         }
         this.sizes = sizes;
