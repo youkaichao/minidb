@@ -1,18 +1,20 @@
 package org.minidb.bplus.bptree;
 
-import apple.laf.JRSUIUtils;
+import javafx.util.Pair;
 import org.minidb.exception.MiniDBException;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.InvalidPropertiesFormatException;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.*;
 
+/**
+ * On-disk BPlus Tree implementation.
+ * values are unique. keys are unique. But one key can have multiple corresponding values,
+ * depending on the `unique` flag in the `BPlusConfiguration` parameter.
+ * The tree is used to represent a mapping from index to rowID.
+ * */
 @SuppressWarnings("WeakerAccess")
 public class BPlusTree {
 
@@ -28,10 +30,6 @@ public class BPlusTree {
     private int deleteIterations;
 
     /**
-     * This constructor allows the most customization as it
-     * allows us to set the I/O flags as well as the file name
-     * of the resulting file.
-     *
      * @param conf B+ Tree configuration instance
      * @param mode I/O mode
      * @param treeFilePath file path for the file
@@ -46,8 +44,14 @@ public class BPlusTree {
         openFile(treeFilePath, mode, conf);
     }
 
+    // Is this a unique index?
+    public boolean isUnique()
+    {
+        return conf.unique;
+    }
+
     /**
-     * Insert the key into the tree
+     * Insert the (key, value) pair into the tree
      * @param key key to add
      * @param value value of the key
      * @throws IOException is thrown when any of the read/write ops fail.
@@ -81,6 +85,134 @@ public class BPlusTree {
         }
         else
             {insertNonFull(root, key, value);}
+    }
+
+    /**
+     * This function is inspired from the one given in CLRS for inserting a key to
+     * a B-Tree but as splitTreeNode has been (heavily) modified in order to be used
+     * in our B+ Tree. It supports handling duplicate keys (if enabled) as well.
+     *
+     * It is able to insert the (Key, Value) pairs using only one pass through the tree.
+     *
+     * @param n current node
+     * @param key key to add
+     * @param value value paired with the key
+     * @throws IOException is thrown when an I/O operation fails
+     */
+    private void insertNonFull(TreeNode n, Object[] key, long value)
+            throws IOException, MiniDBException {
+        boolean useChild = true;
+        int i = binSearchBlock(n, key, Rank.PlusOne);
+        // check if we have a leaf
+        if(n.isLeaf()) {
+            TreeLeaf l = (TreeLeaf)n;
+
+            // before we add it, let's check if the key already exists
+            // and if it does pull up (or create) the overflow page and
+            // add the value there.
+            //
+            // Not that we do *not* add the key if we have a true unique flag
+
+
+            // this is to adjust for a corner case due to indexing
+            int iadj = (n.getCurrentCapacity() > 0 &&
+                    i == 0 && conf.gt(n.getFirstKey(), key)) ? i : i-1;
+            if(n.getCurrentCapacity() > 0 && conf.eq(n.getKeyAt(iadj), key))
+            {// duplicate value for the same key
+                if(conf.unique) {
+                    throw new MiniDBException(String.format(MiniDBException.DuplicateValue, Long.toString(value),
+                            TreeNode.keyToString(key, conf)));
+                }
+
+                // overflow page does not exist, yet; time to create it!
+                if(l.getOverflowPointerAt(iadj) < 0) {
+                    createOverflowPage(l, iadj, value);
+                }
+                // page already exists, so pull it and check if it has
+                // available space, if it does all is good; otherwise we
+                // pull the next overflow page or we create another one.
+                else {
+
+                    TreeOverflow ovf =
+                            (TreeOverflow) readNode(l.getOverflowPointerAt(iadj));
+
+                    while(ovf.isFull(conf)) {
+                        // check if we have more, if not create
+                        if(ovf.getNextPagePointer() < 0)
+                        // create page and return
+                        {createOverflowPage(ovf, -1, value); return;}
+                        // load the next page
+                        else
+                        {ovf = (TreeOverflow)readNode(ovf.getNextPagePointer());}
+                    }
+
+                    // if the loaded page is not full then add it.
+                    ovf.pushToValueList(value);
+                    ovf.incrementCapacity(conf);
+                    ovf.writeNode(treeFile, conf);
+                }
+            }
+            else {
+                // we have a new key insert
+                l.addToValueList(i, value);
+                l.addToKeyArrayAt(i, key);
+                // also create a NULL overflow pointer
+                l.addToOverflowList(i, -1L);
+                l.incrementCapacity(conf);
+                // commit the changes
+                l.writeNode(treeFile, conf);
+            }
+
+        } else {
+
+            // This requires a bit of explanation; the above while loop
+            // starts initially from the *end* key parsing the *right*
+            // child, so initially it's like this:
+            //
+            //  Step 0:
+            //
+            //  Key Array:          | - | - | - | x |
+            //  Pointer Array:      | - | - | - | - | x |
+            //
+            // Now if the while loop stops there, we have a *right* child
+            // pointer, but should it continues we get the following:
+            //
+            // Step 1:
+            //
+            //  Key Array:          | - | - | x | - |
+            //  Pointer Array:      | - | - | - | x | - |
+            //
+            //  and finally we reach the special case where we have the
+            //  following:
+            //
+            // Final step:
+            //
+            //  Key Array:          | x | - | - | - |
+            //  Pointer Array:      | x | - | - | - | - |
+            //
+            //
+            // In this case we have a *left* pointer, which can be
+            // quite confusing initially... hence the changed naming.
+            //
+            //
+
+            TreeInternalNode inode = (TreeInternalNode)n;
+            aChild = readNode(inode.getPointerAt(i));
+            if (aChild.isOverflow() || aChild.isLookupPageOverflowNode()) {
+                // "aChild can't be overflow node"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+            }
+            TreeNode nextAfterAChild = null;
+            if(aChild.isFull(conf)) {
+                splitTreeNode(inode, i);
+                if (conf.ge(key, n.getKeyAt(i))) {
+                    useChild = false;
+                    nextAfterAChild = readNode(inode.getPointerAt(i+1));
+                }
+            }
+
+            insertNonFull(useChild ? aChild : nextAfterAChild, key, value);
+        }
     }
 
     /**
@@ -324,136 +456,6 @@ public class BPlusTree {
     }
 
     /**
-     * This function is inspired from the one given in CLRS for inserting a key to
-     * a B-Tree but as splitTreeNode has been (heavily) modified in order to be used
-     * in our B+ Tree. It supports handling duplicate keys (if enabled) as well.
-     *
-     * It is able to insert the (Key, Value) pairs using only one pass through the tree.
-     *
-     * @param n current node
-     * @param key key to add
-     * @param value value paired with the key
-     * @throws IOException is thrown when an I/O operation fails
-     */
-    private void insertNonFull(TreeNode n, Object[] key, long value)
-            throws IOException, MiniDBException {
-        boolean useChild = true;
-        int i = binSearchBlock(n, key, Rank.PlusOne);
-        // check if we have a leaf
-        if(n.isLeaf()) {
-            TreeLeaf l = (TreeLeaf)n;
-
-            // before we add it, let's check if the key already exists
-            // and if it does pull up (or create) the overflow page and
-            // add the value there.
-            //
-            // Not that we do *not* add the key if we have a true unique flag
-
-
-            // this is to adjust for a corner case due to indexing
-            int iadj = (n.getCurrentCapacity() > 0 &&
-                    i == 0 && conf.gt(n.getFirstKey(), key)) ? i : i-1;
-            if(n.getCurrentCapacity() > 0 && conf.eq(n.getKeyAt(iadj), key)) {
-
-                if(conf.unique) {
-                    throw new MiniDBException(String.format(MiniDBException.DuplicateValue, Long.toString(value),
-                            TreeNode.keyToString(key, conf)));
-                }
-
-                // overflow page does not exist, yet; time to create it!
-                if(l.getOverflowPointerAt(iadj) < 0) {
-                    createOverflowPage(l, iadj, value);
-                }
-                // page already exists, so pull it and check if it has
-                // available space, if it does all is good; otherwise we
-                // pull the next overflow page or we create another one.
-                else {
-
-                    TreeOverflow ovf =
-                            (TreeOverflow) readNode(l.getOverflowPointerAt(iadj));
-
-                    while(ovf.isFull(conf)) {
-                        // check if we have more, if not create
-                        if(ovf.getNextPagePointer() < 0)
-                            // create page and return
-                            {createOverflowPage(ovf, -1, value); return;}
-                        // load the next page
-                        else
-                            {ovf = (TreeOverflow)readNode(ovf.getNextPagePointer());}
-                    }
-
-                    // if the loaded page is not full then add it.
-                    ovf.pushToValueList(value);
-                    ovf.incrementCapacity(conf);
-                    ovf.writeNode(treeFile, conf);
-                }
-            }
-
-            // we have a new key insert
-            else {
-                // now add the (Key, Value) pair
-                l.addToValueList(i, value);
-                l.addToKeyArrayAt(i, key);
-                // also create a NULL overflow pointer
-                l.addToOverflowList(i, -1L);
-                l.incrementCapacity(conf);
-                // commit the changes
-                l.writeNode(treeFile, conf);
-            }
-
-        } else {
-
-            // This requires a bit of explanation; the above while loop
-            // starts initially from the *end* key parsing the *right*
-            // child, so initially it's like this:
-            //
-            //  Step 0:
-            //
-            //  Key Array:          | - | - | - | x |
-            //  Pointer Array:      | - | - | - | - | x |
-            //
-            // Now if the while loop stops there, we have a *right* child
-            // pointer, but should it continues we get the following:
-            //
-            // Step 1:
-            //
-            //  Key Array:          | - | - | x | - |
-            //  Pointer Array:      | - | - | - | x | - |
-            //
-            //  and finally we reach the special case where we have the
-            //  following:
-            //
-            // Final step:
-            //
-            //  Key Array:          | x | - | - | - |
-            //  Pointer Array:      | x | - | - | - | - |
-            //
-            //
-            // In this case we have a *left* pointer, which can be
-            // quite confusing initially... hence the changed naming.
-            //
-            //
-
-            TreeInternalNode inode = (TreeInternalNode)n;
-            aChild = readNode(inode.getPointerAt(i));
-            if (aChild.isOverflow() || aChild.isLookupPageOverflowNode()) {
-                // "aChild can't be overflow node"
-                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
-            }
-            TreeNode nextAfterAChild = null;
-            if(aChild.isFull(conf)) {
-                splitTreeNode(inode, i);
-                if (conf.ge(key, n.getKeyAt(i))) {
-                    useChild = false;
-                    nextAfterAChild = readNode(inode.getPointerAt(i+1));
-                }
-            }
-
-            insertNonFull(useChild ? aChild : nextAfterAChild, key, value);
-        }
-    }
-
-    /**
      * Function to parse the overflow pages specifically for the range queries
      *
      * @param l leaf which contains the key with the overflow page
@@ -646,46 +648,20 @@ public class BPlusTree {
     }
 
     /**
-     * Function to delete a (key, value) pair from our tree...
-     * -- firstly it deletes the pair
-     * -- secondly it updates the pool of empty pages
-     * -- thirdly performs merges if necessary (it capacity falls < degree-1)
-     * -- finally condenses the file size depending on load
-     *
-     * @param key key to delete
-     * @param value the corresponding value
-     * @return whether the specified pair is found and deleted
-     * @throws IOException is thrown when an I/O operation fails
-     */
-    @SuppressWarnings("unused")
-    public boolean deleteEntry(Object[] key, long value)
-    throws IOException, MiniDBException  {
-        if(root.isEmpty()) {
-            return false;
-        } else{
-            padKey(key);
-            return(deleteEntry(root, null, -1, -1, key, value));
-        }
+    * @param key the key to find
+    * @return if `key` is not found, `null` is returned.
+     *        else, return Pair(leaf node that contains the given key, the index of the key)
+    *
+    */
+    private Pair<TreeLeaf, Integer> findKey(Object[] key) throws IOException, MiniDBException
+    {
+        return _findKey(root, null, -1, -1, key);
     }
 
-    /**
-     * That function does the job as described above; to perform easily the deletions
-     * we store *two* nodes instead on *one* in memory; the parent and the current.
-     * This also avoids adding information to the actual node file structure to account
-     * for the "parenting" link.
-     *
-     * @param current node that we currently probe
-     * @param parent parent of the current node
-     * @param key key to delete
-     * @param value the corresponding value
-     * @return whether the specified pair is found and deleted
-     * @throws IOException is thrown when an I/O operation fails
-     */
-    public boolean deleteEntry(TreeNode current, TreeInternalNode parent,
-                                  int parentPointerIndex, int parentKeyIndex,
-                                  Object[] key, long value)
-            throws IOException, MiniDBException {
-
+    private Pair<TreeLeaf, Integer> _findKey(TreeNode current, TreeInternalNode parent,
+                               int parentPointerIndex, int parentKeyIndex,
+                               Object[] key)
+            throws IOException, MiniDBException{
         // check if we need to consolidate
         if(current.isTimeToMerge(conf)) {
             //System.out.println("Parent needs merging (internal node)");
@@ -710,78 +686,139 @@ public class BPlusTree {
             // read the next node
             TreeNode next = readNode(inode.getPointerAt(idx));
             // finally return the resulting set
-            return(deleteEntry(next, inode, idx, i/*keyLocation*/, key, value));
+            return _findKey(next, inode, idx, i/*keyLocation*/, key);
         }
         // the current node, is a leaf.
         else if(current.isLeaf()) {
             TreeLeaf l = (TreeLeaf)current;
             // check if we actually found the key
-            if(i == l.getCurrentCapacity()) {
-                //System.out.println("Key with value: " + key +
-                //        " not found, reached limits");
-                return false;
-            } else if(key != l.getKeyAt(i)) {
-                //System.out.println("Key with value: " + key + " not found, key mismatch");
-                //throw new MiniDBException("Key not found!");
-                return false;
+            if(i == l.getCurrentCapacity() || conf.neq(key, l.getKeyAt(i))) {
+                //key not found
+                return null;
+            }else {
+                // key found!
+                return new Pair<>((TreeLeaf)current, i);
             }
-            else {
-                // we reached here because either we have no overflow page
-                // or non-unique deletes with overflow pages. We should
-                // reach this point after we purged all the overflow pages.
-                long savedValue = ((TreeLeaf)current).getValueAt(i);
-                if(savedValue == value)
-                {// the value is found in this page
-                    ((TreeLeaf)current).removeEntryAt(i, conf);
-                    current.writeNode(treeFile, conf);
-                    return true;
+        }
+        return null;
+    }
+
+    /**
+     * delete or update an existing pair.
+     * It makes update faster than deleting and inserting, as well as sharing much code with deletion.
+     * @param delete whether to delete or update.
+     * @param newValue useful only when `delete == true`.
+     * @return whether the deletion or update is successful
+     * */
+    private boolean deleteOrUpdatePair(Object[] key, long value, long newValue, boolean delete)
+            throws IOException, MiniDBException
+    {
+        padKey(key);
+        Pair<TreeLeaf, Integer> ans = findKey(key);
+        if(ans == null)
+        {
+            return false;
+        }
+        TreeLeaf l = ans.getKey();
+        Integer i = ans.getValue();
+
+        long savedValue = l.getValueAt(i);
+        if(savedValue == value)
+        {// the value is found in this node
+            if(delete)
+            {
+                long ovfpointer = l.getOverflowPointerAt(i);
+                if(ovfpointer == -1)
+                {// the index is unique (so there are no overflow pages) or there is only one value for the key. delete the (key, value) pair.
+                    l.removeEntryAt(i, conf);
+                }else {// the index is not unique and there are multiple values.
+                    // delete one value and read a value from the overflow page.
+                    TreeOverflow povf = (TreeOverflow)readNode(ovfpointer);
+                    l.valueList.set(i, povf.valueList.remove(0));
+                    // persist
+                    povf.writeNode(treeFile, conf);
                 }
+            }else {
+                l.valueList.set(i, newValue);
+            }
+            l.writeNode(treeFile, conf);
+            return true;
+        }
 
-                // check if we have an overflow page
-                if(l.getOverflowPointerAt(i) != -1) {
-                    TreeOverflow ovf = null;
-                    TreeOverflow povf =
-                            (TreeOverflow)readNode(l.getOverflowPointerAt(i));
+        // check if we have an overflow page
+        if(l.getOverflowPointerAt(i) != -1) {
+            TreeOverflow ovf = null; // parent of `povf`
+            TreeOverflow povf =
+                    (TreeOverflow)readNode(l.getOverflowPointerAt(i));
 
-                    boolean found = false;
-                    while (!found)
+            boolean found = false;
+            while (!found)
+            {
+                // find the value in one overflow page
+                ListIterator<Long> it = povf.valueList.listIterator();
+                while (it.hasNext() && !found)
+                {
+                    if(it.next() == value)
                     {
-                        // find the value in one overflow page
-                        Iterator<Long> it = povf.valueList.iterator();
-                        while (it.hasNext() && !found)
-                        {
-                            if(it.next() == value)
-                            {
-                                it.remove();
-                                found = true;
-                            }
+                        found = true;
+                    }
+                }
+                if(found)
+                {
+                    if(delete)
+                    {
+                        it.remove();
+                        povf.decrementCapacity(conf); // decrease the page capacity
+                    }else{
+                        it.set(newValue);
+                    }
+
+                    if(povf.isEmpty()) // delete a value, may cause empty overflow page
+                    {
+                        // it's time to remove the page
+                        if (ovf == null) {
+                            l.setOverflowPointerAt(i, -1L);
+                            l.writeNode(treeFile, conf);
                         }
-                        if(found)
-                        {
-                            povf.decrementCapacity(conf);
-                            // check if it's time to remove the page
-                            if(povf.isEmpty()) {
-                                deletePage(povf.getPageIndex(), false);
-                                return true;
-                            }
-                        }else {
-                            // find the value in the next page
-                            if(povf.getNextPagePointer() != -1L)
-                            {
-                                povf = (TreeOverflow)readNode(povf.getNextPagePointer());
-                            }else {
-                                // value not found
-                                return false;
-                            }
+                        else {
+                            ovf.setNextPagePointer(-1L);
+                            ovf.writeNode(treeFile, conf);
                         }
+                        deletePage(povf.getPageIndex(), false);
+                    }else{
+                        // delete a value but the page is not empty, or update a value. just update the page.
+                        if(!delete && value == newValue)
+                        {
+                            // small optimization. if the update is the same, no need to write the file.
+                        }else{
+                            povf.writeNode(treeFile, conf);
+                        }
+                    }
+                    return true;
+                }else {
+                    // find the value in the next page
+                    if(povf.getNextPagePointer() != -1L)
+                    {
+                        ovf = povf;
+                        povf = (TreeOverflow)readNode(povf.getNextPagePointer());
+                    }else {
+                        // value not found
+                        return false;
                     }
                 }
             }
         }
-        else {
-            throw new IllegalStateException("Read unknown or overflow page while descending");
-        }
+        // pair not found
         return false;
+    }
+
+    public boolean deletePair(Object[] key, long value) throws IOException, MiniDBException  {
+        return deleteOrUpdatePair(key, value, -1L, true);
+    }
+
+    public boolean updatePair(Object[] key, long value, long newValue) throws IOException, MiniDBException
+    {
+        return deleteOrUpdatePair(key, value, newValue, false);
     }
 
     /**

@@ -33,7 +33,7 @@ public class BPlusConfiguration {
     public int overflowPageDegree;       // overflow page degree
     public int lookupPageSize;           // look up page size
     public int conditionThreshold;       // iterations to perform conditioning
-    public boolean unique;               // whether one key can have multiple values
+    public boolean unique;               // whether one key can have multiple values. This corresponds to unique index.
     public final Type[] types; // Keys may contain multiple columns. `types` tracks the type for each column
     // use Integer/Float etc for primitive types
     public final int[] sizes; // size of each key type (in bytes)
@@ -45,8 +45,10 @@ public class BPlusConfiguration {
      * @param entrySize satellite data (default is 8 bytes)
      * @param conditionThreshold threshold to perform file conditioning (default is 1000)
      */
-    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames, int conditionThreshold)
+    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames,
+                              boolean unique, int conditionThreshold)
             throws MiniDBException {
+        this.unique = unique;
         this.colNames = colNames;
         this.types = types;
         for(Type each : types)
