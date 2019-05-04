@@ -1,6 +1,6 @@
 package org.minidb.bplus.bptree;
 
-import org.minidb.bplus.util.InvalidBTreeStateException;
+import org.minidb.exception.MiniDBException;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -94,7 +94,7 @@ class TreeLeaf extends TreeNode {
     }
 
     long removeEntryAt(int index, BPlusConfiguration conf)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         keyArray.remove(index);
         overflowList.remove(index);
         long s = valueList.remove(index);

@@ -1,8 +1,7 @@
 package org.minidb.bplus.bptree;
 
 import apple.laf.JRSUIUtils;
-import org.minidb.bplus.util.DuplicateValuesException;
-import org.minidb.bplus.util.InvalidBTreeStateException;
+import org.minidb.exception.MiniDBException;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,7 +38,7 @@ public class BPlusTree {
     @SuppressWarnings("unused")
     public BPlusTree(BPlusConfiguration conf, String mode,
                      String treeFilePath)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         this.conf = conf;
         initializeCommon();
         openFile(treeFilePath, mode, conf);
@@ -50,15 +49,13 @@ public class BPlusTree {
      * @param key key to add
      * @param value value of the key
      * @throws IOException is thrown when any of the read/write ops fail.
-     * @throws InvalidBTreeStateException is thrown when there is an inconsistency in the tree blocks.
      * @throws IllegalStateException is thrown we have a null tree
-     * @throws NumberFormatException is thrown when we have an invalid key value (we only allow >= 0 as keys)
-     * @throws DuplicateValuesException is thrown when we have an invalid key value (we only allow >= 0 as keys)
+     * @throws MiniDBException
      * */
     @SuppressWarnings("unused")
     public void insertKey(Object[] key, long value)
-            throws IOException, InvalidBTreeStateException,
-            IllegalStateException, NumberFormatException, DuplicateValuesException {
+            throws IOException, MiniDBException,
+            IllegalStateException {
 
         if(root == null)
             {throw new IllegalStateException("Can't insert to null tree");}
@@ -113,7 +110,7 @@ public class BPlusTree {
      * @param index index in the node n that we need to add the median
      */
     private void splitTreeNode(TreeInternalNode n, int index)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
 
         int setIndex;
         TreeNode znode;
@@ -226,10 +223,9 @@ public class BPlusTree {
      * @param index this is only used in the case of a leaf
      * @param value value to push in the new page
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there is an inconsistency in the blocks.
      */
     private void createOverflowPage(TreeNode n, int index, long value)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         TreeOverflow novf;
         if(n.isOverflow()) {
             TreeOverflow ovf = (TreeOverflow)n;
@@ -265,8 +261,8 @@ public class BPlusTree {
             l.writeNode(treeFile, conf);
             // commit page counts
         } else {
-            throw new InvalidBTreeStateException("Expected Leaf or Overflow, " +
-                    "got instead: " + n.getNodeType().toString());
+            // "Expected Leaf or Overflow, got instead: " + n.getNodeType().toString()
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         }
 
         // commit page counts
@@ -334,10 +330,9 @@ public class BPlusTree {
      * @param key key to add
      * @param value value paired with the key
      * @throws IOException is thrown when an I/O operation fails
-     * @throws DuplicateValuesException is thrown when a duplicate value is inserted into an unique tree
      */
     private void insertNonFull(TreeNode n, Object[] key, long value)
-            throws IOException, InvalidBTreeStateException, DuplicateValuesException {
+            throws IOException, MiniDBException {
         boolean useChild = true;
         int i = binSearchBlock(n, key, Rank.PlusOne);
         // check if we have a leaf
@@ -357,7 +352,8 @@ public class BPlusTree {
             if(n.getCurrentCapacity() > 0 && conf.eq(n.getKeyAt(iadj), key)) {
 
                 if(conf.unique) {
-                    throw new DuplicateValuesException("Duplicate Values!");
+                    throw new MiniDBException(String.format(MiniDBException.DuplicateValue, Long.toString(value),
+                            TreeNode.keyToString(key, conf)));
                 }
 
                 // overflow page does not exist, yet; time to create it!
@@ -437,7 +433,8 @@ public class BPlusTree {
             TreeInternalNode inode = (TreeInternalNode)n;
             aChild = readNode(inode.getPointerAt(i));
             if (aChild.isOverflow() || aChild.isLookupPageOverflowNode()) {
-                throw new InvalidBTreeStateException("aChild can't be overflow node");
+                // "aChild can't be overflow node"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
             TreeNode nextAfterAChild = null;
             if(aChild.isFull(conf)) {
@@ -489,7 +486,7 @@ public class BPlusTree {
      * @throws IOException is thrown when an I/O operation fails
      */
     public RangeResult rangeSearch(Object[] minKey, Object[] maxKey)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         SearchResult sMin = searchKey(minKey, conf.unique);
         SearchResult sMax;
         RangeResult rangeQueryResult = new RangeResult();
@@ -575,11 +572,10 @@ public class BPlusTree {
      * @param unique return *all* matching (Key, Value) pairs or the *first* found
      * @return the search result
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     @SuppressWarnings("unused")
     public SearchResult searchKey(Object[] key, boolean unique)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         return(searchKey(this.root, key, unique));
     }
 
@@ -655,11 +651,10 @@ public class BPlusTree {
      * @param value the corresponding value
      * @return whether the specified pair is found and deleted
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     @SuppressWarnings("unused")
     public boolean deleteEntry(Object[] key, long value)
-    throws IOException, InvalidBTreeStateException  {
+    throws IOException, MiniDBException  {
         if(root.isEmpty()) {
             return false;
         } else
@@ -678,12 +673,11 @@ public class BPlusTree {
      * @param value the corresponding value
      * @return whether the specified pair is found and deleted
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     public boolean deleteEntry(TreeNode current, TreeInternalNode parent,
                                   int parentPointerIndex, int parentKeyIndex,
                                   Object[] key, long value)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
 
         // check if we need to consolidate
         if(current.isTimeToMerge(conf)) {
@@ -721,7 +715,7 @@ public class BPlusTree {
                 return false;
             } else if(key != l.getKeyAt(i)) {
                 //System.out.println("Key with value: " + key + " not found, key mismatch");
-                //throw new InvalidBTreeStateException("Key not found!");
+                //throw new MiniDBException("Key not found!");
                 return false;
             }
             else {
@@ -802,17 +796,18 @@ public class BPlusTree {
      *
      * @param with node to check the capacity
      * @return the number of positions to check
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private int canRedistribute(TreeNode with)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         if(with != null) {
             if(with.isInternalNode()) {
                 if(isValidAfterRemoval(((TreeInternalNode)with), 1)) {return(1);}
             } else if(with.isLeaf()) {
                 if(isValidAfterRemoval(((TreeLeaf)with), 1)) {return(1);}
-            } else
-                {throw new InvalidBTreeStateException("Not leaf or internal node found");}
+            } else {
+                //"Not leaf or internal node found"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+            }
         }
         return(-1);
     }
@@ -878,12 +873,11 @@ public class BPlusTree {
      * @param parent the internal node parenting both
      * @param parentKeyIndex index of the parent that refers to this pair
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void redistributeNodes(TreeLeaf to, TreeLeaf with,
                                    boolean left, TreeInternalNode parent,
                                    int parentKeyIndex)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         Object[] key;
         // handle the case when redistributing using prev
         if(left) {
@@ -954,12 +948,11 @@ public class BPlusTree {
      * @param parent the internal node parenting both
      * @param parentKeyIndex index of the parent that refers to this pair
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void redistributeNodes(TreeInternalNode to, TreeInternalNode with,
                                    boolean left, TreeInternalNode parent,
                                    int parentKeyIndex)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         Object[] key;
         Object[] pkey = parent.getKeyAt(parentKeyIndex);
         if(left) {
@@ -1021,17 +1014,17 @@ public class BPlusTree {
      * @param parent parent of both leaves (internal node)
      * @param parentPointerIndex index of parent that has these two pointers
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private TreeNode mergeNodes(TreeLeaf left, TreeLeaf right, TreeLeaf other,
                             TreeInternalNode parent, int parentPointerIndex,
                             int parentKeyIndex, boolean isLeftOfNext,
                                 boolean useNextPointer)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
 
         if((left.getCurrentCapacity() + right.getCurrentCapacity()) >
                 conf.getMaxLeafNodeCapacity()) {
-            throw new InvalidBTreeStateException("Leaf node capacity exceeded in merge");
+            // "Leaf node capacity exceeded in merge"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         }
 
         // flag the node for deletion
@@ -1093,10 +1086,9 @@ public class BPlusTree {
      * @param left  left leaf
      * @param right right leaf
      * @param cap   max capacity of the leaf
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void joinLeaves(TreeLeaf left, TreeLeaf right, int cap)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         for (int i = 0; i < cap; i++) {
             left.addLastToOverflowList(right.popOverflowPointer());
             left.addLastToValueList(right.popValue());
@@ -1112,10 +1104,9 @@ public class BPlusTree {
      * @param left node that merge ends
      * @param right node that is deleted during merge
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void mergeNodes(TreeLeaf left, TreeLeaf right)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         right.setBeingDeleted(true);
         // join the two leaves together.
         int cap = right.getCurrentCapacity();
@@ -1145,7 +1136,6 @@ public class BPlusTree {
      * @param parent parent of both internal nodes.
      * @param parentPointerIndex index of the parent that has these two pointers
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private TreeNode mergeNodes(TreeInternalNode left, TreeInternalNode right,
                             TreeInternalNode other, TreeInternalNode parent,
@@ -1153,12 +1143,13 @@ public class BPlusTree {
                                 int parentKeyIndex,
                                 boolean isLeftOfNext,
                                 boolean useNextPointer)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
 
         // check if we can actually merge
         if((left.getCurrentCapacity() + right.getCurrentCapacity()) >
                 conf.getMaxInternalNodeCapacity()) {
-            throw new InvalidBTreeStateException("Internal node capacity exceeded in merge");
+            // "Internal node capacity exceeded in merge"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         }
 
         // check if we are using a trickery
@@ -1202,10 +1193,9 @@ public class BPlusTree {
      * @param left node that merge ends
      * @param right node that is deleted during merge
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void mergeNodes(TreeInternalNode left, TreeInternalNode right, Object[] midKey)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         right.setBeingDeleted(true);
         left.addLastToKeyArray(midKey);
         int cap = right.getCurrentCapacity();
@@ -1223,10 +1213,9 @@ public class BPlusTree {
      * @param left  left node
      * @param right right node
      * @param cap   max capacity of the node
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
      */
     private void joinInternalNodes(TreeInternalNode left, TreeInternalNode right, int cap)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         for (int i = 0; i < cap; i++) {
             left.addLastToKeyArray(right.popKey());
             left.addPointerLast(right.popPointer());
@@ -1246,11 +1235,11 @@ public class BPlusTree {
      * @param parentKeyIndex key index that has mnode as a child in parent
      * @return the updated mnode
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     public TreeNode mergeOrRedistributeTreeNodes(TreeNode mnode, TreeInternalNode parent,
                                              int parentPointerIndex, int parentKeyIndex)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
 
         // that index should not be present
         if(parent != null && parentPointerIndex < 0)
@@ -1289,10 +1278,10 @@ public class BPlusTree {
      * @param mnode root node
      * @return the root node
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private TreeNode handleRootRedistributionOrMerging(TreeNode mnode)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         if(mnode.isInternalNode()) {
             //System.out.println("\n -- Check if Consolidating Root required");
 
@@ -1310,7 +1299,10 @@ public class BPlusTree {
             rChild = readNode(splitNode.getPointerAt(1));
 
             if(lChild == null || rChild == null)
-                {throw new InvalidBTreeStateException("Null root child found.");}
+            {
+                // "Null root child found."
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+            }
 
             int lcap = lChild.getCurrentCapacity();
             int rcap = rChild.getCurrentCapacity();
@@ -1407,13 +1399,17 @@ public class BPlusTree {
                     // since we have a new root
                     return(lChild);
                 }
-            } else
-                {throw new InvalidBTreeStateException("Unknown children type");}
+            } else{
+                // "Unknown children type"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+            }
 
             return(root);
 
-        } else if(!mnode.isLeaf())
-            {throw new InvalidBTreeStateException("Invalid tree Root type.");}
+        } else if(!mnode.isLeaf()){
+            // "Invalid tree Root type."
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
         return null;
     }
 
@@ -1426,13 +1422,13 @@ public class BPlusTree {
      * @param parentKeyIndex parent key index that mnode is child
      * @return the updated node (if any updates are made)
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private TreeNode handleLeafNodeRedistributionOrMerging(TreeNode mnode,
                                                            TreeInternalNode parent,
                                                            int parentPointerIndex,
                                                            int parentKeyIndex)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         TreeLeaf splitNode = (TreeLeaf)mnode;
         TreeLeaf nptr, pptr;
 
@@ -1441,7 +1437,8 @@ public class BPlusTree {
         pptr = (TreeLeaf)readNode(splitNode.getPrevPagePointer());
 
         if(nptr == null && pptr == null) {
-            throw new InvalidBTreeStateException("Both children (leaves) can't null");
+            // "Both children (leaves) can't null"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         } /*
         else {
             System.out.println("Leaf node merging/redistribution needs to happen");
@@ -1522,23 +1519,27 @@ public class BPlusTree {
      * @param prev previous leaf
      * @param split current leaf (split node)
      * @param next next leaf
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private void validateNeighbours(TreeLeaf prev, TreeLeaf split, TreeLeaf next)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         if(prev != null) {
             if(split.getPrevPagePointer() != prev.getPageIndex()) {
-                throw new InvalidBTreeStateException("Split prev pointer not matching prev page index");
+                // "Split prev pointer not matching prev page index"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             } else if(prev.getNextPagePointer() != split.getPageIndex()) {
-                throw new InvalidBTreeStateException("Split page index not matching prev pointer");
+                // "Split page index not matching prev pointer"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
         }
 
         if(next != null) {
             if(split.getNextPagePointer() != next.getPageIndex()) {
-                throw new InvalidBTreeStateException("Split next pointer not matching next page index");
+                // "Split next pointer not matching next page index"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             } else if(next.getPrevPagePointer() != split.getPageIndex()) {
-                throw new InvalidBTreeStateException("Split page index not matching next pointer");
+                // "Split page index not matching next pointer"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
         }
     }
@@ -1552,13 +1553,13 @@ public class BPlusTree {
      * @param parentKeyIndex parent key index that mnode is child
      * @return the updated node (if any updates are made)
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private TreeNode handleInternalNodeRedistributionOrMerging(TreeNode mnode,
                                                                TreeInternalNode parent,
                                                                int parentPointerIndex,
                                                                int parentKeyIndex)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         //System.out.println("Internal node merging/redistribution needs to happen");
 
         TreeInternalNode splitNode = (TreeInternalNode)mnode;
@@ -1569,7 +1570,8 @@ public class BPlusTree {
         pptr = (TreeInternalNode)readNode(parent.getPointerAt(parentPointerIndex-1));
 
         if(nptr == null && pptr == null) {
-            throw new InvalidBTreeStateException("Can't have both children null");
+            // "Can't have both children null"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         }
 
         int nnum = canRedistribute(nptr);
@@ -1631,8 +1633,8 @@ public class BPlusTree {
                         parentPointerIndex, parentKeyIndex,
                         isLeftOfNext, /*useNextPointer = */ false);
             } else {
-                throw new InvalidBTreeStateException("Can't merge or " +
-                        "redistribute, corrupted file?");
+                // "Can't merge or redistribute, corrupted file?"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
         }
 
@@ -1644,9 +1646,9 @@ public class BPlusTree {
      * create a Leaf that acts as our Root, until we split it.
      * @return the initial (leaf) tree root.
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
-    private TreeNode createTree() throws IOException, InvalidBTreeStateException {
+    private TreeNode createTree() throws IOException, MiniDBException {
         if(root == null) {
             root = new TreeLeaf(-1, -1,
                     TreeNodeType.TREE_ROOT_LEAF,
@@ -1712,9 +1714,9 @@ public class BPlusTree {
      * before committing the file changes at the end.
      *
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
-    private void commitLookupPage() throws IOException, InvalidBTreeStateException {
+    private void commitLookupPage() throws IOException, MiniDBException {
 
         int i, cap = lookupPagesPool.size();
         // push all the existing lookup pages to the free pool
@@ -1797,16 +1799,16 @@ public class BPlusTree {
 
 
             if (written != freeSlotPool.size()) {
-                throw new InvalidBTreeStateException("Amount of lookup values written" +
-                        " does not comply with the size of the pool");
+                // "Amount of lookup values written does not comply with the size of the pool"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
 
-            System.out.println(" -- Multiple pages needed for the " +
-                    "overflow values" + "\n\tPages needed: " + pages +
-                    "\n\tInitial page capacity: " +
-                    conf.getFirstLookupPageElements() +
-                    "\n\tPer Page capacity: " +
-                    conf.getMaxLookupPageOverflowCapacity());
+//            System.out.println(" -- Multiple pages needed for the " +
+//                    "overflow values" + "\n\tPages needed: " + pages +
+//                    "\n\tInitial page capacity: " +
+//                    conf.getFirstLookupPageElements() +
+//                    "\n\tPer Page capacity: " +
+//                    conf.getMaxLookupPageOverflowCapacity());
         }
     }
 
@@ -1956,54 +1958,75 @@ public class BPlusTree {
      *
      * @param r file to read from
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private void readFileHeader(RandomAccessFile r)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         r.seek(0L);
 
         // read the header number
         int headerNumber = r.readInt();
 
         if(headerNumber < 0)
-            {throw new InvalidBTreeStateException("Negative header number found...");}
+        {
+            // "Negative header number found..."
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // read the page size
         int pageSize = r.readInt();
 
         if(pageSize < 0)
-            {throw new InvalidBTreeStateException("Cannot create a tree with negative page size");}
+        {
+            // "Cannot create a tree with negative page size"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // read the entry size
         int entrySize = r.readInt();
 
         if(entrySize <= 0)
-            {throw new InvalidBTreeStateException("Entry size must be > 0");}
+        {
+            // "Entry size must be > 0"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // key size
         int keySize = r.readInt();
 
         if(keySize > 8 || keySize < 4)
-            {throw new InvalidBTreeStateException("Key size but be either 4 or 8 bytes");}
+        {
+            // "Key size but be either 4 or 8 bytes"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // read the number of pages (excluding the lookup)
         totalTreePages = r.readLong();
 
         if(totalTreePages < 0)
-            {throw new InvalidBTreeStateException("Tree page number cannot be < 0");}
+        {
+            // "Tree page number cannot be < 0"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
 
         // read the max page offset
         maxPageNumber = r.readLong();
 
         if(maxPageNumber < 0 || (totalTreePages > 0 && maxPageNumber == 0))
-            {throw new InvalidBTreeStateException("Invalid max page offset");}
+        {
+            // "Invalid max page offset"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // read the root index
         long rootIndex = r.readLong();
 
         if(rootIndex < 0)
-            {throw new InvalidBTreeStateException("Root can't have index < 0");}
+        {
+            // "Root can't have index < 0"
+            throw new MiniDBException(MiniDBException.InvalidBPTreeState);
+        }
 
         // read the next lookup page pointer
         this.firstPoolNextPointer = r.readLong();
@@ -2040,10 +2063,10 @@ public class BPlusTree {
      * @param mode mode of opening (basically to truncate it or not)
      * @param opt configuration reference
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
     private void openFile(String path, String mode, BPlusConfiguration opt)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         File f = new File(path);
         String stmode = mode.substring(0, 2);
         treeFile = new RandomAccessFile(path, stmode);
@@ -2071,9 +2094,9 @@ public class BPlusTree {
      * thus flushing the buffers.
      *
      * @throws IOException is thrown when an I/O operation fails
-     * @throws InvalidBTreeStateException is thrown when there are inconsistencies in the blocks.
+     * @throws MiniDBException is thrown when there are inconsistencies in the blocks.
      */
-    public void commitTree() throws IOException, InvalidBTreeStateException {
+    public void commitTree() throws IOException, MiniDBException {
         commitLookupPage();
         writeFileHeader(conf);
         this.treeFile.close();
@@ -2216,7 +2239,7 @@ public class BPlusTree {
      * @param sort sort free sort pool?
      */
     private void deletePage(long pageIndex, boolean sort)
-            throws IOException, InvalidBTreeStateException {
+            throws IOException, MiniDBException {
         this.freeSlotPool.add(pageIndex);
         this.totalTreePages--;
         this.deleteIterations++;

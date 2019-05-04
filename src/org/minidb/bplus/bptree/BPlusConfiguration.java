@@ -1,6 +1,6 @@
 package org.minidb.bplus.bptree;
 
-import org.minidb.bplus.util.UnknownColumnTypeException;
+import org.minidb.exception.MiniDBException;
 
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -43,14 +43,15 @@ public class BPlusConfiguration {
      * @param entrySize satellite data (default is 8 bytes)
      * @param conditionThreshold threshold to perform file conditioning (default is 1000)
      */
-    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames, int conditionThreshold) throws UnknownColumnTypeException {
+    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames, int conditionThreshold)
+            throws MiniDBException {
         this.colNames = colNames;
         this.types = types;
         for(Type each : types)
         {
             if(each != Integer.class && each != Long.class && each != Float.class && each != Double.class && each != String.class)
             {
-                throw new UnknownColumnTypeException(String.format("Type (%s) not supported!", each.getTypeName()));
+                throw new MiniDBException(String.format(MiniDBException.UnknownColumnType, each.getTypeName()));
             }
         }
         this.sizes = sizes;

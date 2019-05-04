@@ -1,10 +1,8 @@
 package org.minidb.bplus.bptree;
 
-import org.minidb.bplus.util.InvalidBTreeStateException;
-
+import org.minidb.exception.MiniDBException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.InvalidPropertiesFormatException;
 import java.util.LinkedList;
@@ -99,9 +97,8 @@ abstract class TreeNode {
      * Increment the node capacity by one.
      *
      * @param conf configuration instance for validating the limits.
-     * @throws InvalidBTreeStateException is thrown when the capacity limits are violated after incrementing.
      */
-    void incrementCapacity(BPlusConfiguration conf) throws InvalidBTreeStateException {
+    void incrementCapacity(BPlusConfiguration conf) throws MiniDBException {
         currentCapacity++;
         validateNodeCapacityLimits(conf);
     }
@@ -110,10 +107,9 @@ abstract class TreeNode {
      * Decrement the node capacity by one.
      *
      * @param conf configuration instance for validating the limits.
-     * @throws InvalidBTreeStateException is thrown when the capacity limits are violated after decrementing.
      */
     void decrementCapacity(BPlusConfiguration conf)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
         currentCapacity--;
         validateNodeCapacityLimits(conf);
     }
@@ -122,66 +118,65 @@ abstract class TreeNode {
      * Function that validates the node capacity invariants based on the current configuration instance.
      *
      * @param conf configuration instance for validating the limits.
-     * @throws InvalidBTreeStateException is thrown when the capacity limits are violated upon checking.
      */
     private void validateNodeCapacityLimits(BPlusConfiguration conf)
-            throws InvalidBTreeStateException {
+            throws MiniDBException {
 
         if(isRoot()) {
             if(currentCapacity < 0) {
-                throw new InvalidBTreeStateException("Cannot have less than zero elements");
+                // "Cannot have less than zero elements"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             } else if(isLeaf() && currentCapacity > conf.getMaxLeafNodeCapacity()) {
-                throw new InvalidBTreeStateException("Exceeded leaf node " +
-                        "allowed capacity at root");
+                // "Exceeded leaf node allowed capacity at root"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             } else if(isInternalNode() && currentCapacity > conf.getMaxInternalNodeCapacity()) {
-                throw new InvalidBTreeStateException("Exceeded internal node " +
-                        "allowed capacity at root");
+                // "Exceeded internal node allowed capacity at root"
+                throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
         } else {
             if (isLookupPageOverflowNode()) {
                 if (beingDeleted && currentCapacity < 0) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            0 + " elements in a lookup overflow node when deleting it");
+                    // "Cannot have less than 0 elements in a lookup overflow node when deleting it"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 } else if (currentCapacity > conf.getMaxLookupPageOverflowCapacity()) {
-                    throw new InvalidBTreeStateException("Exceeded lookup overflow node " +
-                            "allowed capacity (node)");
+                    // "Exceeded lookup overflow node allowed capacity (node)"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
             }
             if(isOverflow()) {
                 if(beingDeleted && currentCapacity < 0) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            0 + " elements in a overflow node when deleting it");
+                    // "Cannot have less than 0 elements in a overflow node when deleting it"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
                 else if(currentCapacity > conf.getMaxOverflowNodeCapacity()) {
-                    throw new InvalidBTreeStateException("Exceeded overflow node " +
-                            "allowed capacity (node)");
+                    // "Exceeded overflow node allowed capacity (node)"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
             }
             else if(isLeaf()) {
                 if(beingDeleted && currentCapacity < 0) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            0 + " elements in a leaf node when deleting it");
+                    // "Cannot have less than 0 elements in a leaf node when deleting it"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 } else if(!beingDeleted && currentCapacity < conf.getMinLeafNodeCapacity()) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            conf.getMinLeafNodeCapacity() + " elements in a leaf node");
+                    // "Cannot have less than " + conf.getMinLeafNodeCapacity() + " elements in a leaf node"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
                 else if(currentCapacity > conf.getMaxLeafNodeCapacity()) {
-                    throw new InvalidBTreeStateException("Exceeded leaf node " +
-                            "allowed capacity (node)");
+                    // "Exceeded leaf node allowed capacity (node)"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
             } else if(isInternalNode()) {
                 if(beingDeleted && currentCapacity < 0) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            0 + " elements in an internal node");
+                    // "Cannot have less than 0 elements in an internal node"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
                 else if(!beingDeleted && currentCapacity < conf.getMinInternalNodeCapacity()) {
-                    throw new InvalidBTreeStateException("Cannot have less than " +
-                            conf.getMinInternalNodeCapacity() +
-                            " elements in an internal node");
+                    // "Cannot have less than " + conf.getMinInternalNodeCapacity() + " elements in an internal node"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
                 else if(currentCapacity > conf.getMaxInternalNodeCapacity()) {
-                    throw new InvalidBTreeStateException("Exceeded internal node " +
-                            "allowed capacity (node)");
+                    // "Exceeded internal node allowed capacity (node)"
+                    throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
             }
         }
@@ -518,5 +513,37 @@ abstract class TreeNode {
                 System.out.println((String)key[i]);
             }
         }
+    }
+
+    public static String keyToString(Object[] key, BPlusConfiguration conf)
+    {
+        StringBuilder ans = new StringBuilder();
+        ans.append("[");
+        for(int i = 0; i < conf.types.length; ++i)
+        {
+            if(conf.types[i] == Integer.class)
+            {
+                ans.append((Integer)key[i]);
+                ans.append(' ');
+            }else if(conf.types[i] == Long.class)
+            {
+                ans.append((Long)key[i]);
+                ans.append(' ');
+            }else if(conf.types[i] == Float.class)
+            {
+                ans.append((Float) key[i]);
+                ans.append(' ');
+            }else if(conf.types[i] == Double.class)
+            {
+                ans.append((Double) key[i]);
+                ans.append(' ');
+            }else if(conf.types[i] == String.class)
+            {
+                ans.append((String)key[i]);
+                ans.append(' ');
+            }
+        }
+        ans.append("]");
+        return ans.toString();
     }
 }

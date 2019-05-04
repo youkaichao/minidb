@@ -3,9 +3,7 @@ package org.minidb.bplus.test;
 import org.minidb.bplus.bptree.BPlusConfiguration;
 import org.minidb.bplus.bptree.BPlusTree;
 import org.minidb.bplus.bptree.SearchResult;
-import org.minidb.bplus.util.DuplicateValuesException;
-import org.minidb.bplus.util.InvalidBTreeStateException;
-import org.minidb.bplus.util.UnknownColumnTypeException;
+import org.minidb.exception.MiniDBException;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -13,7 +11,6 @@ import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.Set;
 
 public class TestBPlusTree {
 
@@ -31,8 +28,7 @@ public class TestBPlusTree {
                 throw new Exception("wrong!");
             }
         }
-        HashSet<Long> expectedValues = new HashSet<Long>();
-        expectedValues.addAll(Arrays.asList(expected));
+        HashSet<Long> expectedValues = new HashSet<>(Arrays.asList(expected));
         if(!expectedValues.equals(findValues))
         {
             throw new Exception("wrong!");
@@ -41,7 +37,7 @@ public class TestBPlusTree {
 
     @Test
     public void testInsert()
-            throws Exception, IOException, InvalidBTreeStateException, DuplicateValuesException, UnknownColumnTypeException {
+            throws Exception, IOException, MiniDBException{
         boolean recreateTree = true;
         Type[] types = new Type[]{Integer.class, Double.class, String.class};
         int[] sizes = new int[]{4, 8, 10};
