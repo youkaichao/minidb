@@ -9,4 +9,5 @@ public class MiniDBException extends Exception {
     public static String UnknownColumnType = "Unknown column type (%s). " +
             "Only Integer, Long, Float, Double and String are supported!";
     public static String InvalidBPTreeState = "Internal error! Invalid B+ tree state.";
+    public static String BadNodeType = "Internal error! Bad node type.";
 }

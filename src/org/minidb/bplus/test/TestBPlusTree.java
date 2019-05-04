@@ -3,7 +3,6 @@ package org.minidb.bplus.test;
 import org.junit.Assert;
 import org.minidb.bplus.bptree.BPlusConfiguration;
 import org.minidb.bplus.bptree.BPlusTree;
-import org.minidb.bplus.bptree.SearchResult;
 import org.minidb.exception.MiniDBException;
 import org.junit.Test;
 
@@ -17,18 +16,8 @@ public class TestBPlusTree {
 
     private static void assertEqual (BPlusTree bt, Object[] key, Long[] expected) throws Exception
     {
-        SearchResult ans = bt.searchKey(key, false);
-        LinkedList<Long> values = ans.getValues();
-        HashSet<Long> findValues = new HashSet<Long>();
-        if(values != null)
-        {
-            findValues.addAll(values);
-        }else{
-            if(expected.length != 0)
-            {
-                throw new Exception("wrong!");
-            }
-        }
+        LinkedList<Long> values = bt.search(key);
+        HashSet<Long> findValues = new HashSet<Long>(values);
         HashSet<Long> expectedValues = new HashSet<>(Arrays.asList(expected));
         if(!expectedValues.equals(findValues))
         {
