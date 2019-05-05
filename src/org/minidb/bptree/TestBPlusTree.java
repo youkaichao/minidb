@@ -6,11 +6,23 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 
 public class TestBPlusTree {
+
+    private static BPlusTree createCommonTree(boolean unique) throws Exception, IOException, MiniDBException
+    {
+        boolean recreateTree = true;
+        ArrayList<Type> types = new ArrayList<>(Arrays.asList(Integer.class, Double.class, String.class));
+        ArrayList<Integer> sizes = new ArrayList<>(Arrays.asList(4, 8, 10));
+        ArrayList<Integer> colIDs = new ArrayList<>(Arrays.asList(0, 1, 2));
+        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colIDs, unique,1000);
+        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        return bt;
+    }
 
     private static void assertSearchEqual(BPlusTree bt, Object[] key, Long[] expected) throws Exception
     {
@@ -33,12 +45,7 @@ public class TestBPlusTree {
     @Test
     public void testDuplicateInsert()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, false,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(false);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -61,12 +68,7 @@ public class TestBPlusTree {
     @Test
     public void testUniqueInsert()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(true);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -86,12 +88,7 @@ public class TestBPlusTree {
     @Test
     public void testDuplicateDelete()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, false,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(false);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -114,12 +111,7 @@ public class TestBPlusTree {
     @Test
     public void testUniqueDelete()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(true);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -139,12 +131,7 @@ public class TestBPlusTree {
     @Test
     public void testDuplicateUpdate()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, false,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(false);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -168,12 +155,7 @@ public class TestBPlusTree {
     @Test
     public void testUniqueUpdate()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(true);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -194,12 +176,7 @@ public class TestBPlusTree {
     @Test
     public void testDuplicateRangeSearch()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, false,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(false);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);
@@ -249,12 +226,7 @@ public class TestBPlusTree {
     @Test
     public void testUniqueRangeSearch()
             throws Exception, IOException, MiniDBException{
-        boolean recreateTree = true;
-        Type[] types = new Type[]{Integer.class, Double.class, String.class};
-        int[] sizes = new int[]{4, 8, 10};
-        String[] colNames = new String[]{"a", "b", "c"};
-        BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colNames, true,1000);
-        BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
+        BPlusTree bt = createCommonTree(true);
         bt.insertPair(new Object[]{100, 200.0, "12"}, 12L);
         bt.insertPair(new Object[]{100, 200.0, "120"}, 0L);
         bt.insertPair(new Object[]{100, 200.0, "9"}, 254L);

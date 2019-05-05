@@ -2005,7 +2005,7 @@ public class BPlusTree {
         // read the page size
         int pageSize = r.readInt();
 
-        if(pageSize < 0)
+        if(pageSize < 0 || pageSize != conf.pageSize)
         {
             // "Cannot create a tree with negative page size"
             throw new MiniDBException(MiniDBException.InvalidBPTreeState);
@@ -2014,7 +2014,7 @@ public class BPlusTree {
         // read the entry size
         int entrySize = r.readInt();
 
-        if(entrySize <= 0)
+        if(entrySize <= 0 || entrySize != conf.entrySize)
         {
             // "Entry size must be > 0"
             throw new MiniDBException(MiniDBException.InvalidBPTreeState);
@@ -2022,10 +2022,8 @@ public class BPlusTree {
 
         // key size
         int keySize = r.readInt();
-
-        if(keySize > 8 || keySize < 4)
+        if(keySize != conf.keySize)
         {
-            // "Key size but be either 4 or 8 bytes"
             throw new MiniDBException(MiniDBException.InvalidBPTreeState);
         }
 
@@ -2102,12 +2100,9 @@ public class BPlusTree {
         conf = opt;
         // check if the file already exists
         if(f.exists() && !mode.contains("+")) {
-            System.out.println("File already exists (size: " + treeFile.length() +
-                    " bytes), trying to read it...");
             readFileHeader(treeFile);
             // read the lookup page
             initializeLookupPage(f.exists());
-            System.out.println("File seems to be valid. Loaded OK!");
         }
         // if we have to start anew, do so.
         else {
@@ -2176,10 +2171,6 @@ public class BPlusTree {
                 }
                 pindex = lpOvf.getNextPointer();
             }
-
-            System.out.println("-- Parsed " + parsed +
-                    " lookup overflow pages and the initial one, totaling: " +
-                    freeSlotPool.size() + " entries");
         }
     }
 
@@ -2354,9 +2345,9 @@ public class BPlusTree {
 
     private Object[] padKey(Object[] key) throws MiniDBException
     {
-        for (Integer i : conf.strColIndexes)
+        for (Integer i : conf.strColLocalId)
         {
-            key[i] = padString((String)key[i], conf.sizes[i]);
+            key[i] = padString((String)key[i], conf.sizes.get(i));
         }
         return key;
     }

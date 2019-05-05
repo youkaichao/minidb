@@ -3,12 +3,8 @@ package org.minidb.bptree;
 import org.minidb.exception.MiniDBException;
 
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  *
@@ -34,22 +30,22 @@ public class BPlusConfiguration {
     public int lookupPageSize;           // look up page size
     public int conditionThreshold;       // iterations to perform conditioning
     public boolean unique;               // whether one key can have multiple values. This corresponds to unique index.
-    public final Type[] types; // Keys may contain multiple columns. `types` tracks the type for each column
+    public final ArrayList<Type> types; // Keys may contain multiple columns. `types` tracks the type for each column
     // use Integer/Float etc for primitive types
-    public final int[] sizes; // size of each key type (in bytes)
-    public final String[] colNames; // name of each column
-    public final LinkedList<Integer> strColIndexes; // index of string columns
+    public final ArrayList<Integer> sizes; // size of each key type (in bytes)
+    public final ArrayList<Integer> colIDs; // ID of each column
+    public final ArrayList<Integer> strColLocalId; // ID of string columns (in local Id, not the id from the whole table)
 
     /**
      * @param pageSize page size (default is 1024 bytes)
      * @param entrySize satellite data (default is 8 bytes)
      * @param conditionThreshold threshold to perform file conditioning (default is 1000)
      */
-    public BPlusConfiguration(int pageSize, int entrySize, Type[] types, int[] sizes, String[] colNames,
+    public BPlusConfiguration(int pageSize, int entrySize, ArrayList<Type> types, ArrayList<Integer> sizes, ArrayList<Integer> colIDs,
                               boolean unique, int conditionThreshold)
             throws MiniDBException {
         this.unique = unique;
-        this.colNames = colNames;
+        this.colIDs = colIDs;
         this.types = types;
         for(Type each : types)
         {
@@ -58,12 +54,12 @@ public class BPlusConfiguration {
                 throw new MiniDBException(String.format(MiniDBException.UnknownColumnType, each.getTypeName()));
             }
         }
-        strColIndexes = new LinkedList<>();
-        for(int i = 0; i < types.length; ++i)
+        strColLocalId = new ArrayList<Integer>();
+        for(int i = 0; i < types.size(); ++i)
         {
-            if(types[i] == String.class)
+            if(types.get(i) == String.class)
             {
-                strColIndexes.addLast(i);
+                strColLocalId.add(i);
             }
         }
         this.sizes = sizes;
@@ -180,9 +176,9 @@ public class BPlusConfiguration {
     * */
     private boolean compare(Object[] key1, Object[] key2, BiFunction<Integer, Integer, Boolean> func, boolean finalValue)
     {
-        for(int j = 0; j < types.length; ++j)
+        for(int j = 0; j < types.size(); ++j)
         {
-            if(types[j] == Integer.class)
+            if(types.get(j) == Integer.class)
             {
                 int ans = Integer.compare((Integer)key1[j], (Integer)key2[j]);
                 if(ans == 0)
@@ -190,7 +186,7 @@ public class BPlusConfiguration {
                     continue;
                 }
                 return func.apply(ans, 0);
-            }else if(types[j] == Long.class)
+            }else if(types.get(j) == Long.class)
             {
                 int ans = Long.compare((Long)key1[j], (Long)key2[j]);
                 if(ans == 0)
@@ -198,7 +194,7 @@ public class BPlusConfiguration {
                     continue;
                 }
                 return func.apply(ans, 0);
-            }else if(types[j] == Float.class)
+            }else if(types.get(j) == Float.class)
             {
                 int ans = Float.compare((Float)key1[j], (Float)key2[j]);
                 if(ans == 0)
@@ -206,7 +202,7 @@ public class BPlusConfiguration {
                     continue;
                 }
                 return func.apply(ans, 0);
-            }else if(types[j] == Double.class)
+            }else if(types.get(j) == Double.class)
             {
                 int ans = Double.compare((Double)key1[j], (Double)key2[j]);
                 if(ans == 0)
@@ -214,7 +210,7 @@ public class BPlusConfiguration {
                     continue;
                 }
                 return func.apply(ans, 0);
-            }else if(types[j] == String.class)
+            }else if(types.get(j) == String.class)
             {
                 int ans = ((String)key1[j]).compareTo((String)key2[j]);
                 if(ans == 0)

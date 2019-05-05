@@ -440,21 +440,21 @@ abstract class TreeNode {
     * */
     public static void writeKey(RandomAccessFile r, Object[] key, BPlusConfiguration conf) throws IOException
     {
-        for(int j = 0; j < conf.types.length; ++j)
+        for(int j = 0; j < conf.types.size(); ++j)
         {
-            if(conf.types[j] == Integer.class)
+            if(conf.types.get(j) == Integer.class)
             {
                 r.writeInt((Integer)key[j]);
-            }else if(conf.types[j] == Long.class)
+            }else if(conf.types.get(j) == Long.class)
             {
                 r.writeLong((Long)key[j]);
-            }else if(conf.types[j] == Float.class)
+            }else if(conf.types.get(j) == Float.class)
             {
                 r.writeFloat((Float)key[j]);
-            }else if(conf.types[j] == Double.class)
+            }else if(conf.types.get(j) == Double.class)
             {
                 r.writeDouble((Double)key[j]);
-            }else if(conf.types[j] == String.class)
+            }else if(conf.types.get(j) == String.class)
             {
                 r.write(((String)key[j]).getBytes(StandardCharsets.UTF_8));
             }
@@ -466,26 +466,26 @@ abstract class TreeNode {
     * */
     public static Object[] readKey(RandomAccessFile r, BPlusConfiguration conf) throws IOException
     {
-        Object[] key = new Object[conf.types.length];
-        for(int j = 0; j < conf.types.length; ++j)
+        Object[] key = new Object[conf.types.size()];
+        for(int j = 0; j < conf.types.size(); ++j)
         {
-            if(conf.types[j] == Integer.class)
+            if(conf.types.get(j) == Integer.class)
             {
                 key[j] = r.readInt();
-            }else if(conf.types[j] == Long.class)
+            }else if(conf.types.get(j) == Long.class)
             {
                 key[j] = r.readLong();
-            }else if(conf.types[j] == Float.class)
+            }else if(conf.types.get(j) == Float.class)
             {
                 key[j] = r.readFloat();
-            }else if(conf.types[j] == Double.class)
+            }else if(conf.types.get(j) == Double.class)
             {
                 key[j] = r.readDouble();
-            }else if(conf.types[j] == String.class)
+            }else if(conf.types.get(j) == String.class)
             {
                 //TODO possible not efficient. buffer is copied into the string?
-                byte[] buffer = new byte[conf.sizes[j]];
-                r.read(buffer, 0, conf.sizes[j]);
+                byte[] buffer = new byte[conf.sizes.get(j)];
+                r.read(buffer, 0, conf.sizes.get(j));
                 key[j] = new String(buffer, StandardCharsets.UTF_8);
             }
         }
@@ -494,21 +494,21 @@ abstract class TreeNode {
 
     public static void printKey(Object[] key, BPlusConfiguration conf)
     {
-        for(int i = 0; i < conf.types.length; ++i)
+        for(int i = 0; i < conf.types.size(); ++i)
         {
-            if(conf.types[i] == Integer.class)
+            if(conf.types.get(i) == Integer.class)
             {
                 System.out.println((Integer)key[i]);
-            }else if(conf.types[i] == Long.class)
+            }else if(conf.types.get(i) == Long.class)
             {
                 System.out.println((Long)key[i]);
-            }else if(conf.types[i] == Float.class)
+            }else if(conf.types.get(i) == Float.class)
             {
                 System.out.println((Float)key[i]);
-            }else if(conf.types[i] == Double.class)
+            }else if(conf.types.get(i) == Double.class)
             {
                 System.out.println((Double)key[i]);
-            }else if(conf.types[i] == String.class)
+            }else if(conf.types.get(i) == String.class)
             {
                 System.out.println((String)key[i]);
             }
@@ -519,25 +519,25 @@ abstract class TreeNode {
     {
         StringBuilder ans = new StringBuilder();
         ans.append("[");
-        for(int i = 0; i < conf.types.length; ++i)
+        for(int i = 0; i < conf.types.size(); ++i)
         {
-            if(conf.types[i] == Integer.class)
+            if(conf.types.get(i) == Integer.class)
             {
                 ans.append((Integer)key[i]);
                 ans.append(' ');
-            }else if(conf.types[i] == Long.class)
+            }else if(conf.types.get(i) == Long.class)
             {
                 ans.append((Long)key[i]);
                 ans.append(' ');
-            }else if(conf.types[i] == Float.class)
+            }else if(conf.types.get(i) == Float.class)
             {
                 ans.append((Float) key[i]);
                 ans.append(' ');
-            }else if(conf.types[i] == Double.class)
+            }else if(conf.types.get(i) == Double.class)
             {
                 ans.append((Double) key[i]);
                 ans.append(' ');
-            }else if(conf.types[i] == String.class)
+            }else if(conf.types.get(i) == String.class)
             {
                 ans.append((String)key[i]);
                 ans.append(' ');
