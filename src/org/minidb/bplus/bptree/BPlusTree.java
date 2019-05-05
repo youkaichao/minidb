@@ -14,6 +14,27 @@ import java.util.*;
  * values are unique. keys are unique. But one key can have multiple corresponding values,
  * depending on the `unique` flag in the `BPlusConfiguration` parameter.
  * The tree is used to represent a mapping from index to rowID.
+ * internal node:
+ *  k_{-1}=-inf     k0          k1         k2        k_{n}=+inf
+ *            [p0)      [p1)         [p2)       [p3)
+ *              k_{i-1} <= pi < k_{i}, 0 <= i <= n
+ *
+ *  leaf node:
+ *  k_{-1}=-inf     k0          k1         k2        k_{n}=+inf
+ *                  v0          v1         v2
+ *                  vi, 0 <= i < n
+ *
+ *  node split:
+ *          [ k1 k2 k3 k4 ]
+ *
+ *  This split would result in the following:
+ *
+ *              [ k3 ]
+ *              /   \
+ *            /      \
+ *          /         \
+ *     [ k1 k2 ]   [ k3 k4 ]
+ *
  * */
 @SuppressWarnings("WeakerAccess")
 public class BPlusTree {
@@ -414,47 +435,49 @@ public class BPlusTree {
      * @return the index of the bound or found key.
      */
     private int binSearchBlock(TreeNode n, Object[] key, Rank rank) {
-        return binSearchRec(n, 0, n.getCurrentCapacity() - 1, key, rank);
+        int ans = binarySearch(n, 0, n.getCurrentCapacity(), key);
+        switch (rank)
+        {
+            case PlusOne:
+                return ans + 1;
+            case Succ:
+                if(ans == -1)
+                {// not found
+                    return 0;
+                }else{
+                    // ans can be used as array index ([0, n))
+                    if(conf.eq(key, n.getKeyAt(ans)))
+                    {// found
+                        return ans;
+                    }
+                    // not found
+                    return Math.min(ans + 1, n.getCurrentCapacity() - 1);
+                }
+            default:
+                return ans;
+        }
     }
 
     /**
-     * Binary search implementation for tree blocks.
-     *
-     * @param n    node to search
-     * @param l    left (lower-part) array index
-     * @param r    right (upper-part) array index
-     * @param key  key to search
-     * @param rank rank of the search (for lower/upper bound)
-     * @return the index of the bound or found key.
-     */
-    private int binSearchRec(TreeNode n, int l, int r, Object[] key, Rank rank) {
-        int m;
-        Object[] mkey;
-
-        if (l > r) {
-            switch (rank) {
-                case Pred:
-                    return l == 0 ? l : l - 1;
-                case Succ:
-                    return l > 0 && l == n.getCurrentCapacity() ? l - 1 : l;
-                //case Exact: return l;
-                default:
-                    return l;
+     * binary search by Junhui Deng
+     * search in [lo, hi). 0 <= lo <= hi <= n
+     * the common usage is binarySearch(node, 0, n).
+     * if key is very small, -1 is returned.
+     * if key is very large, n - 1 is returned.
+     * */
+    private int binarySearch(TreeNode node, int lo, int hi, Object[] key)
+    {
+        while(lo < hi){
+            int mi = (lo + hi) / 2;
+            if(conf.lt(key, node.getKeyAt(mi)))
+            {
+                hi = mi;
+            }else{
+                lo = mi + 1;
             }
-        } else {
-            m = (l + r) / 2;
-            mkey = n.getKeyAt(m);
         }
-
-        if (conf.lt(mkey, key)) {
-            return binSearchRec(n, m + 1, r, key, rank);
-        } else if (conf.gt(mkey, key)) {
-            return binSearchRec(n, l, m - 1, key, rank);
-        } else { // this is equal
-            return Rank.PlusOne == rank ? m + 1 : m;
-        }
+        return lo - 1;
     }
-
 
     /**
      * read the values for the specified key. overflow values are read as well.
@@ -489,133 +512,100 @@ public class BPlusTree {
     }
 
     /**
-     * Function to parse the overflow pages specifically for the range queries
-     *
-     * @param l leaf which contains the key with the overflow page
-     * @param index index of the key
-     * @param res where to store the results
-     * @throws IOException is thrown when an I/O operation fails
-     */
-    private void parseOverflowPages(TreeLeaf l, int index, RangeResult res)
-            throws IOException {
-        TreeOverflow ovfPage = (TreeOverflow)readNode(l.getOverflowPointerAt(index));
-        int icap = 0;
-        while(icap < ovfPage.getCurrentCapacity()) {
-            res.getQueryResult().add(new KeyValueWrapper(l.getKeyAt(index),
-                    ovfPage.getValueAt(icap)));
-            icap++;
-            // check if we have more pages
-            if(icap == ovfPage.getCurrentCapacity() &&
-                    ovfPage.getNextPagePointer() != -1L) {
-                ovfPage = (TreeOverflow)readNode(ovfPage.getNextPagePointer());
-                icap = 0;
-            }
-        }
-    }
-
-    /**
-     * Handle range search queries with a bit of twist on how we handle duplicate keys.
-     *
-     *  We have two basic cases depending duplicate keys, which is basically whether
-     *  we actually return them or not.
-     *
      * @param minKey min key of the range
      * @param maxKey max key of the range
-     * @return the results packed in a neat class for handling
      * @throws IOException is thrown when an I/O operation fails
      */
-    public LinkedList<Long> rangeSearch(Object[] minKey, Object[] maxKey)
+    public LinkedList<Long> rangeSearch(Object[] minKey, Object[] maxKey, boolean includeMin, boolean includeMax)
             throws IOException, MiniDBException {
-        padKey(minKey);
-        SearchResult minAns = findKey(minKey);
-        padKey(maxKey);
         LinkedList<Long> ans = new LinkedList<>();
-        RangeResult rangeQueryResult = new RangeResult();
-        if(minAns.found) {
-            // read up until we find a key that's greater than maxKey
-            // or the last entry.
-            TreeLeaf leaf = minAns.leafLoc;
-            Integer i = minAns.index;
-            while(conf.le(leaf.getKeyAt(i), maxKey))
-            {
-                ans.addAll(getValues(leaf, i));
-                i++;
-                if(i == leaf.getCurrentCapacity())
-                {// check if we need to read the next block
-                    if(leaf.getNextPagePointer() < 0)// check if we have a next node to load.
-                    {
-                        break;
-                    }
-                    leaf = (TreeLeaf)readNode(leaf.getNextPagePointer());
-                    i = 0;
-                }
-            }
+        padKey(minKey);
+        padKey(maxKey);
+        if(conf.eq(minKey, maxKey) && (!includeMax || !includeMin))
+        {// the maxKey == minKey, but the interval is open in either side
             return ans;
         }
-        SearchResult maxAns = findKey(maxKey);
-        if(maxAns.found) {
-            // read down until we find a key that's less than minKey
-            // or the first entry.
-            TreeLeaf leaf = maxAns.leafLoc;
-            Integer i = maxAns.index;
-            while(conf.ge(leaf.getKeyAt(i), minKey))
+        SearchResult minAns = findKey(minKey);
+
+        // read up until we find a key that's greater than maxKey
+        // or the last entry.
+        TreeLeaf leaf = minAns.leafLoc;
+        Integer i = minAns.index;
+
+        // shit corner case. just move to one key left to assure leaf.ki <= minKey
+        if(i > 0)
+        {
+            --i;
+        }else{
+            if(leaf.getPrevPagePointer() >= 0)// check if we have a previous node to load.
             {
-                ans.addAll(getValues(leaf, i));
-                i--;
-                if(i < 0)
-                {// check if we need to read the next block
-                    if(leaf.getPrevPagePointer() < 0)// check if we have a previous node to load.
-                    {
-                        break;
-                    }
-                    leaf = (TreeLeaf)readNode(leaf.getPrevPagePointer());
-                    i = leaf.getCurrentCapacity() - 1;
-                }
+                leaf = (TreeLeaf)readNode(leaf.getPrevPagePointer());
+                i = leaf.getCurrentCapacity() - 1;
             }
-            return ans;
         }
-        // this is the case where both searches might fail to find something, but
-        // we *might* have something between in the given range. To account for
-        // that even if we have *not* found something we will return those results
-        // instead. For example say we have a range of [2, 5] and we only have keys
-        // from [3, 4], thus both searches for min and max would fail to find a
-        // matching key in both cases. Thing is to account for that *both* results
-        // will be stopped at the first key that is less than min and max values
-        // given even if we did not find anything.
-        // finally return the result list (empty or not)
-//        SearchResult sMax;
-//        sMax = searchKey(maxKey, conf.unique);
-//        int i = sMax.getIndex();
-//        while(i >= 0 && conf.ge(sMax.getLeaf().getKeyAt(i), minKey)) {
-//            rangeQueryResult.getQueryResult().
-//                    add(new KeyValueWrapper(sMax.getLeaf().getKeyAt(i),
-//                            sMax.getLeaf().getValueAt(i)));
-//
-//            // check if we have an overflow page
-//            if(!conf.unique && sMax.getLeaf().getOverflowPointerAt(i) != -1)
-//            {parseOverflowPages(sMax.getLeaf(), i, rangeQueryResult);}
-//
-//            i--;
-//            // check if we need to read the next block
-//            if(i < 0) {
-//                // check if we do have another node to load
-//                if(sMax.getLeaf().getPrevPagePointer() < 0)
-//                // if not just break the loop
-//                {break;}
-//                sMax.setLeaf((TreeLeaf)readNode(sMax.getLeaf().getPrevPagePointer()));
-//                // set it to max length
-//                i = sMax.getLeaf().getCurrentCapacity()-1;
-//            }
-//        }
+
+        // left part, iterate while leaf.ki < minKey
+        while(conf.lt(leaf.getKeyAt(i), minKey))
+        {
+            i++;
+            if(i == leaf.getCurrentCapacity())
+            {// check if we need to read the next block
+                if(leaf.getNextPagePointer() < 0)// check if we have a next node to load.
+                {
+                    return ans;
+                }
+                leaf = (TreeLeaf)readNode(leaf.getNextPagePointer());
+                i = 0;
+            }
+        }
+
+        // now leaf.ki >= minKey
+
+        // left corner case
+        if(includeMin && conf.eq(leaf.getKeyAt(i), minKey))
+        {
+            ans.addAll(getValues(leaf, i));
+            ++i;
+            if(i == leaf.getCurrentCapacity())
+            {// check if we need to read the next block
+                if(leaf.getNextPagePointer() < 0)// check if we have a next node to load.
+                {
+                    return ans;
+                }
+                leaf = (TreeLeaf)readNode(leaf.getNextPagePointer());
+                i = 0;
+            }
+        }
+
+        // middle part, left open and right open
+        while(conf.lt(leaf.getKeyAt(i), maxKey))
+        {
+            ans.addAll(getValues(leaf, i));
+            i++;
+            if(i == leaf.getCurrentCapacity())
+            {// check if we need to read the next block
+                if(leaf.getNextPagePointer() < 0)// check if we have a next node to load.
+                {
+                    return ans;
+                }
+                leaf = (TreeLeaf)readNode(leaf.getNextPagePointer());
+                i = 0;
+            }
+        }
+
+        // right corner case
+        if(includeMax && conf.eq(leaf.getKeyAt(i), maxKey))
+        {
+            ans.addAll(getValues(leaf, i));
+        }
         return ans;
     }
 
 
     /**
     * @param key the key to find
-    * @return if `key` is not found, `null` is returned.
-     *        else, return Pair(leaf node that contains the given key, the index of the key)
-    *
+    * @return if `key` is not found, `the last leaf node that is searched` is returned.
+    *        else, return Pair(leaf node that contains the given key, the index of the key)
     */
     private SearchResult findKey(Object[] key) throws IOException, MiniDBException
     {
