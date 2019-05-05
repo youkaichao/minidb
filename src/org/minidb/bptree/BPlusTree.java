@@ -1,6 +1,5 @@
-package org.minidb.bplus.bptree;
+package org.minidb.bptree;
 
-import javafx.util.Pair;
 import org.minidb.exception.MiniDBException;
 
 import java.io.File;
@@ -94,7 +93,7 @@ public class BPlusTree {
             // allocate a new *internal* node, to be placed as the
             // *left* child of the new root
             aChild = this.root;
-            TreeInternalNode node_buf = new TreeInternalNode(TreeNodeType.TREE_ROOT_INTERNAL,
+            TreeInternalNode node_buf = new TreeInternalNode(TreeNode.TreeNodeType.TREE_ROOT_INTERNAL,
                     generateFirstAvailablePageIndex(conf));
             node_buf.addPointerAt(0, aChild.getPageIndex());
             this.root = node_buf;
@@ -277,7 +276,7 @@ public class BPlusTree {
             TreeInternalNode zInternal,
                              yInternal = (TreeInternalNode) ynode;
 
-            zInternal = new TreeInternalNode(TreeNodeType.TREE_INTERNAL_NODE,
+            zInternal = new TreeInternalNode(TreeNode.TreeNodeType.TREE_INTERNAL_NODE,
                     generateFirstAvailablePageIndex(conf));
 
             setIndex =  conf.treeDegree-1;
@@ -296,7 +295,7 @@ public class BPlusTree {
 
             // it it was the root, invalidate it and make it a regular internal node
             if(yInternal.isRoot()) {
-                yInternal.setNodeType(TreeNodeType.TREE_INTERNAL_NODE);
+                yInternal.setNodeType(TreeNode.TreeNodeType.TREE_INTERNAL_NODE);
             }
 
             // update pointer at n_{index+1}
@@ -317,7 +316,7 @@ public class BPlusTree {
                      afterLeaf;
 
             zLeaf = new TreeLeaf(yLeaf.getNextPagePointer(),
-                    yLeaf.getPageIndex(), TreeNodeType.TREE_LEAF,
+                    yLeaf.getPageIndex(), TreeNode.TreeNodeType.TREE_LEAF,
                     generateFirstAvailablePageIndex(conf));
 
             // update the previous pointer from the node after ynode
@@ -344,7 +343,7 @@ public class BPlusTree {
 
             // it it was the root, invalidate it and make it a regular leaf
             if(yLeaf.isRoot()) {
-                yLeaf.setNodeType(TreeNodeType.TREE_LEAF);
+                yLeaf.setNodeType(TreeNode.TreeNodeType.TREE_LEAF);
             }
 
             // update pointer at n_{index+1}
@@ -1368,7 +1367,7 @@ public class BPlusTree {
                 else {
                     mergeNodes(pLeaf, nLeaf);
                     // update root page
-                    pLeaf.setNodeType(TreeNodeType.TREE_ROOT_LEAF);
+                    pLeaf.setNodeType(TreeNode.TreeNodeType.TREE_ROOT_LEAF);
                     // update the leaf pointers
                     pLeaf.setNextPagePointer(-1L);
                     pLeaf.setPrevPagePointer(-1L);
@@ -1417,7 +1416,7 @@ public class BPlusTree {
                     //System.out.println("\t -- Merging leaf nodes");
                     mergeNodes(lIntNode, rIntNode, splitNode.getFirstKey());
                     // update root page
-                    lIntNode.setNodeType(TreeNodeType.TREE_ROOT_INTERNAL);
+                    lIntNode.setNodeType(TreeNode.TreeNodeType.TREE_ROOT_INTERNAL);
                     // delete previous root page
                     deletePage(root.getPageIndex(), false);
                     // set root page
@@ -1681,7 +1680,7 @@ public class BPlusTree {
     private TreeNode createTree() throws IOException, MiniDBException {
         if(root == null) {
             root = new TreeLeaf(-1, -1,
-                    TreeNodeType.TREE_ROOT_LEAF,
+                    TreeNode.TreeNodeType.TREE_ROOT_LEAF,
                     generateFirstAvailablePageIndex(conf));
             // write the file
             root.writeNode(treeFile, conf);
@@ -1698,28 +1697,28 @@ public class BPlusTree {
      * @return nodeType equivalent
      * @throws InvalidPropertiesFormatException is thrown when the node is of an unknown type
      */
-    private TreeNodeType getPageType(short pval)
+    private TreeNode.TreeNodeType getPageType(short pval)
             throws InvalidPropertiesFormatException {
         switch(pval) {
 
             case 1:         // LEAF
-                {return(TreeNodeType.TREE_LEAF);}
+                {return(TreeNode.TreeNodeType.TREE_LEAF);}
 
             case 2:         // INTERNAL NODE
-                {return(TreeNodeType.TREE_INTERNAL_NODE);}
+                {return(TreeNode.TreeNodeType.TREE_INTERNAL_NODE);}
 
             case 3:         // INTERNAL NODE /w ROOT
-                {return(TreeNodeType.TREE_ROOT_INTERNAL);}
+                {return(TreeNode.TreeNodeType.TREE_ROOT_INTERNAL);}
 
             case 4:         // LEAF NODE /w ROOT
-                {return(TreeNodeType.TREE_ROOT_LEAF);}
+                {return(TreeNode.TreeNodeType.TREE_ROOT_LEAF);}
 
             case 5:         // LEAF OVERFLOW NODE
-                {return(TreeNodeType.TREE_LEAF_OVERFLOW);}
+                {return(TreeNode.TreeNodeType.TREE_LEAF_OVERFLOW);}
 
             case 6:         // TREE_LOOKUP_OVERFLOW
             {
-                return (TreeNodeType.TREE_LOOKUP_OVERFLOW);
+                return (TreeNode.TreeNodeType.TREE_LOOKUP_OVERFLOW);
             }
             default: {
                 throw new InvalidPropertiesFormatException("Unknown " +
@@ -1881,7 +1880,7 @@ public class BPlusTree {
             {return(null);}
         treeFile.seek(index);
         // get the page type
-        TreeNodeType nt = getPageType(treeFile.readShort());
+        TreeNode.TreeNodeType nt = getPageType(treeFile.readShort());
 
         // handle internal node reading
         if(isInternalNode(nt)) {
@@ -1957,9 +1956,9 @@ public class BPlusTree {
      * @param nt nodeType of the node we want to check
      * @return return true if it's an Internal Node, false if it's not.
      */
-    private boolean isInternalNode(TreeNodeType nt) {
-        return(nt == TreeNodeType.TREE_INTERNAL_NODE ||
-                nt == TreeNodeType.TREE_ROOT_INTERNAL);
+    private boolean isInternalNode(TreeNode.TreeNodeType nt) {
+        return(nt == TreeNode.TreeNodeType.TREE_INTERNAL_NODE ||
+                nt == TreeNode.TreeNodeType.TREE_ROOT_INTERNAL);
     }
 
     /**
@@ -1968,8 +1967,8 @@ public class BPlusTree {
      * @param nt nodeType of the node we want to check
      * @return return true if it's an overflow page, false if it's not.
      */
-    public boolean isOverflowPage(TreeNodeType nt)
-        {return(nt == TreeNodeType.TREE_LEAF_OVERFLOW);}
+    public boolean isOverflowPage(TreeNode.TreeNodeType nt)
+        {return(nt == TreeNode.TreeNodeType.TREE_LEAF_OVERFLOW);}
 
     /**
      * Check if the node is a leaf page
@@ -1977,10 +1976,10 @@ public class BPlusTree {
      * @param nt nodeType of the node we want to check
      * @return return true it's a leaf page, false if it's not
      */
-    public boolean isLeaf(TreeNodeType nt) {
-        return(nt == TreeNodeType.TREE_LEAF ||
-                nt == TreeNodeType.TREE_LEAF_OVERFLOW ||
-                nt == TreeNodeType.TREE_ROOT_LEAF);
+    public boolean isLeaf(TreeNode.TreeNodeType nt) {
+        return(nt == TreeNode.TreeNodeType.TREE_LEAF ||
+                nt == TreeNode.TreeNodeType.TREE_LEAF_OVERFLOW ||
+                nt == TreeNode.TreeNodeType.TREE_ROOT_LEAF);
     }
 
     /**

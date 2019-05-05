@@ -1,8 +1,6 @@
-package org.minidb.bplus.test;
+package org.minidb.bptree;
 
 import org.junit.Assert;
-import org.minidb.bplus.bptree.BPlusConfiguration;
-import org.minidb.bplus.bptree.BPlusTree;
 import org.minidb.exception.MiniDBException;
 import org.junit.Test;
 

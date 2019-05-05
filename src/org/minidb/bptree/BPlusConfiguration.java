@@ -1,4 +1,4 @@
-package org.minidb.bplus.bptree;
+package org.minidb.bptree;
 
 import org.minidb.exception.MiniDBException;
 

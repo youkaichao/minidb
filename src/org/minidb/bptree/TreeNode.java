@@ -1,4 +1,4 @@
-package org.minidb.bplus.bptree;
+package org.minidb.bptree;
 
 import org.minidb.exception.MiniDBException;
 import java.io.IOException;
@@ -545,5 +545,14 @@ abstract class TreeNode {
         }
         ans.append("]");
         return ans.toString();
+    }
+
+    enum TreeNodeType {
+        TREE_LEAF,
+        TREE_INTERNAL_NODE,
+        TREE_ROOT_INTERNAL,
+        TREE_ROOT_LEAF,
+        TREE_LEAF_OVERFLOW,
+        TREE_LOOKUP_OVERFLOW
     }
 }
