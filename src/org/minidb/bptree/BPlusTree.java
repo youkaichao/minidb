@@ -41,7 +41,7 @@ public class BPlusTree {
     private TreeNode root;
     private TreeNode aChild;
     private RandomAccessFile treeFile;
-    private BPlusConfiguration conf;
+    public BPlusConfiguration conf;
     private LinkedList<Long> freeSlotPool;
     private LinkedList<Long> lookupPagesPool;
     private long firstPoolNextPointer;
@@ -2207,15 +2207,6 @@ public class BPlusTree {
         treeFile.writeLong(totalTreePages);
         treeFile.writeLong(maxPageNumber);
     }
-
-    /**
-     * Return the current configuration
-     *
-     * @return the configuration reference
-     */
-    @SuppressWarnings("unused")
-    public BPlusConfiguration getTreeConfiguration()
-        {return(conf);}
 
     /**
      * Prints the current configuration to stdout.
