@@ -2,6 +2,7 @@ package org.minidb.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 
@@ -112,7 +113,7 @@ class TreeInternalNode extends TreeNode {
                 getCurrentCapacity());
 
         System.out.println("\nPrinting stored Keys:");
-        for(Object[] each : keyArray)
+        for(ArrayList<Object> each : keyArray)
         {
             TreeNode.printKey(each, conf);
         }

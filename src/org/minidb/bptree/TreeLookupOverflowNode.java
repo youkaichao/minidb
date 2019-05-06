@@ -2,6 +2,7 @@ package org.minidb.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 
 @SuppressWarnings("unused")
 class TreeLookupOverflowNode extends TreeNode {
@@ -52,7 +53,7 @@ class TreeLookupOverflowNode extends TreeNode {
 
         // now write the index values
         for (int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong((Long)getKeyAt(i)[0]);
+            r.writeLong((Long) getKeyAt(i).get(0));
         }
 
     }
@@ -83,8 +84,8 @@ class TreeLookupOverflowNode extends TreeNode {
         System.out.println("Current node capacity is: " + getCurrentCapacity());
 
         System.out.println("\nPrinting tuples: \n");
-        for (Object[] key : keyArray) {
-            System.out.print((Long)key[0]);
+        for (ArrayList<Object> key : keyArray) {
+            System.out.print((Long) key.get(0));
         }
 
         System.out.println("\n");

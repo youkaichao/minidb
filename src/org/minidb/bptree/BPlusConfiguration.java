@@ -174,13 +174,13 @@ public class BPlusConfiguration {
     /*
     compare function with short-cut evaluation.
     * */
-    private boolean compare(Object[] key1, Object[] key2, BiFunction<Integer, Integer, Boolean> func, boolean finalValue)
+    private boolean compare(ArrayList<Object> key1, ArrayList<Object> key2, BiFunction<Integer, Integer, Boolean> func, boolean finalValue)
     {
         for(int j = 0; j < types.size(); ++j)
         {
             if(types.get(j) == Integer.class)
             {
-                int ans = Integer.compare((Integer)key1[j], (Integer)key2[j]);
+                int ans = Integer.compare((Integer) key1.get(j), (Integer) key2.get(j));
                 if(ans == 0)
                 {
                     continue;
@@ -188,7 +188,7 @@ public class BPlusConfiguration {
                 return func.apply(ans, 0);
             }else if(types.get(j) == Long.class)
             {
-                int ans = Long.compare((Long)key1[j], (Long)key2[j]);
+                int ans = Long.compare((Long) key1.get(j), (Long) key2.get(j));
                 if(ans == 0)
                 {
                     continue;
@@ -196,7 +196,7 @@ public class BPlusConfiguration {
                 return func.apply(ans, 0);
             }else if(types.get(j) == Float.class)
             {
-                int ans = Float.compare((Float)key1[j], (Float)key2[j]);
+                int ans = Float.compare((Float) key1.get(j), (Float) key2.get(j));
                 if(ans == 0)
                 {
                     continue;
@@ -204,7 +204,7 @@ public class BPlusConfiguration {
                 return func.apply(ans, 0);
             }else if(types.get(j) == Double.class)
             {
-                int ans = Double.compare((Double)key1[j], (Double)key2[j]);
+                int ans = Double.compare((Double) key1.get(j), (Double) key2.get(j));
                 if(ans == 0)
                 {
                     continue;
@@ -212,7 +212,7 @@ public class BPlusConfiguration {
                 return func.apply(ans, 0);
             }else if(types.get(j) == String.class)
             {
-                int ans = ((String)key1[j]).compareTo((String)key2[j]);
+                int ans = ((String) key1.get(j)).compareTo((String) key2.get(j));
                 if(ans == 0)
                 {
                     continue;
@@ -225,36 +225,36 @@ public class BPlusConfiguration {
     }
 
     // > op
-    public boolean gt(Object[] key1, Object[] key2)
+    public boolean gt(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return compare(key1, key2, (Integer x, Integer y) -> x > y, false);
     }
 
     // >= op
-    public boolean ge(Object[] key1, Object[] key2)
+    public boolean ge(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return compare(key1, key2, (Integer x, Integer y) -> x > y, true);
     }
 
     // < op
-    public boolean lt(Object[] key1, Object[] key2)
+    public boolean lt(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return compare(key1, key2, (Integer x, Integer y) -> x < y, false);
     }
     // <= op
-    public boolean le(Object[] key1, Object[] key2)
+    public boolean le(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return compare(key1, key2, (Integer x, Integer y) -> x < y, true);
     }
 
     // != op
-    public boolean neq(Object[] key1, Object[] key2)
+    public boolean neq(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return compare(key1, key2, (Integer x, Integer y) -> !x.equals(y), false);
     }
 
     // == op
-    public boolean eq(Object[] key1, Object[] key2)
+    public boolean eq(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return !neq(key1, key2);
     }

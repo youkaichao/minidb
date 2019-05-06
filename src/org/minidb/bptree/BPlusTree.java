@@ -79,7 +79,7 @@ public class BPlusTree {
      * @throws MiniDBException
      * */
     @SuppressWarnings("unused")
-    public void insertPair(Object[] key, long value)
+    public void insertPair(ArrayList<Object> key, long value)
             throws IOException, MiniDBException,
             IllegalStateException {
 
@@ -119,7 +119,7 @@ public class BPlusTree {
      * @param value value paired with the key
      * @throws IOException is thrown when an I/O operation fails
      */
-    private void insertNonFull(TreeNode n, Object[] key, long value)
+    private void insertNonFull(TreeNode n, ArrayList<Object> key, long value)
             throws IOException, MiniDBException {
         boolean useChild = true;
         int i = binSearchBlock(n, key, Rank.PlusOne);
@@ -270,7 +270,7 @@ public class BPlusTree {
 
         int setIndex;
         TreeNode znode;
-        Object[] keyToAdd;
+        ArrayList<Object> keyToAdd;
         TreeNode ynode = aChild; // x.c_{i}
         if(ynode.isInternalNode()) {
             TreeInternalNode zInternal,
@@ -433,7 +433,7 @@ public class BPlusTree {
      * @param rank rank of the search (for lower/upper bound)
      * @return the index of the bound or found key.
      */
-    private int binSearchBlock(TreeNode n, Object[] key, Rank rank) {
+    private int binSearchBlock(TreeNode n, ArrayList<Object> key, Rank rank) {
         int ans = binarySearch(n, 0, n.getCurrentCapacity(), key);
         switch (rank)
         {
@@ -464,7 +464,7 @@ public class BPlusTree {
      * if key is very small, -1 is returned.
      * if key is very large, n - 1 is returned.
      * */
-    private int binarySearch(TreeNode node, int lo, int hi, Object[] key)
+    private int binarySearch(TreeNode node, int lo, int hi, ArrayList<Object> key)
     {
         while(lo < hi){
             int mi = (lo + hi) / 2;
@@ -515,7 +515,7 @@ public class BPlusTree {
      * @param maxKey max key of the range
      * @throws IOException is thrown when an I/O operation fails
      */
-    public LinkedList<Long> rangeSearch(Object[] minKey, Object[] maxKey, boolean includeMin, boolean includeMax)
+    public LinkedList<Long> rangeSearch(ArrayList<Object> minKey, ArrayList<Object> maxKey, boolean includeMin, boolean includeMax)
             throws IOException, MiniDBException {
         LinkedList<Long> ans = new LinkedList<>();
         padKey(minKey);
@@ -606,14 +606,14 @@ public class BPlusTree {
     * @return if `key` is not found, `the last leaf node that is searched` is returned.
     *        else, return Pair(leaf node that contains the given key, the index of the key)
     */
-    private SearchResult findKey(Object[] key) throws IOException, MiniDBException
+    private SearchResult findKey(ArrayList<Object> key) throws IOException, MiniDBException
     {
         return _findKey(root, null, -1, -1, key);
     }
 
     private SearchResult _findKey(TreeNode current, TreeInternalNode parent,
-                               int parentPointerIndex, int parentKeyIndex,
-                               Object[] key)
+                                  int parentPointerIndex, int parentKeyIndex,
+                                  ArrayList<Object> key)
             throws IOException, MiniDBException{
         // check if we need to consolidate
         if(current.isTimeToMerge(conf)) {
@@ -665,7 +665,7 @@ public class BPlusTree {
      * @param newValue useful only when `delete == false` (which means update).
      * @return whether the deletion or update is successful
      * */
-    private boolean deleteOrUpdatePair(Object[] key, long value, long newValue, boolean delete)
+    private boolean deleteOrUpdatePair(ArrayList<Object> key, long value, long newValue, boolean delete)
             throws IOException, MiniDBException
     {
         padKey(key);
@@ -778,11 +778,11 @@ public class BPlusTree {
         return false;
     }
 
-    public boolean deletePair(Object[] key, long value) throws IOException, MiniDBException  {
+    public boolean deletePair(ArrayList<Object> key, long value) throws IOException, MiniDBException  {
         return deleteOrUpdatePair(key, value, -1L, true);
     }
 
-    public boolean updatePair(Object[] key, long value, long newValue) throws IOException, MiniDBException
+    public boolean updatePair(ArrayList<Object> key, long value, long newValue) throws IOException, MiniDBException
     {
         return deleteOrUpdatePair(key, value, newValue, false);
     }
@@ -791,7 +791,7 @@ public class BPlusTree {
      * query all the values with key.
      * @return not null. LinkedList with length >= 0.
      * */
-    public LinkedList<Long> search(Object[] key) throws IOException, MiniDBException
+    public LinkedList<Long> search(ArrayList<Object> key) throws IOException, MiniDBException
     {
         LinkedList<Long> returnValue = new LinkedList<>();
         padKey(key);
@@ -907,7 +907,7 @@ public class BPlusTree {
                                    boolean left, TreeInternalNode parent,
                                    int parentKeyIndex)
             throws IOException, MiniDBException {
-        Object[] key;
+        ArrayList<Object> key;
         // handle the case when redistributing using prev
         if(left) {
             to.pushToOverflowList(with.removeLastOverflowPointer());
@@ -982,8 +982,8 @@ public class BPlusTree {
                                    boolean left, TreeInternalNode parent,
                                    int parentKeyIndex)
             throws IOException, MiniDBException {
-        Object[] key;
-        Object[] pkey = parent.getKeyAt(parentKeyIndex);
+        ArrayList<Object> key;
+        ArrayList<Object> pkey = parent.getKeyAt(parentKeyIndex);
         if(left) {
             to.pushToKeyArray(pkey);
             key = with.removeLastKey();
@@ -1223,7 +1223,7 @@ public class BPlusTree {
      * @param right node that is deleted during merge
      * @throws IOException is thrown when an I/O operation fails
      */
-    private void mergeNodes(TreeInternalNode left, TreeInternalNode right, Object[] midKey)
+    private void mergeNodes(TreeInternalNode left, TreeInternalNode right, ArrayList<Object> midKey)
             throws IOException, MiniDBException {
         right.setBeingDeleted(true);
         left.addLastToKeyArray(midKey);
@@ -1806,7 +1806,7 @@ public class BPlusTree {
                 for (int j = 0;
                      j < cap && poolIndex < freeSlotPool.size();
                      j++, poolIndex++) {
-                    lpOvf.addToKeyArrayAt(j, new Object[]{freeSlotPool.get(poolIndex)});
+                    lpOvf.addToKeyArrayAt(j, new ArrayList<>(Arrays.asList(freeSlotPool.get(poolIndex))));
                     lpOvf.incrementCapacity(conf);
                     written++;
                 }
@@ -1940,7 +1940,7 @@ public class BPlusTree {
 
             // now loop through the
             for (int i = 0; i < curCap; i++) {
-                lpOvf.addToKeyArrayAt(i, new Object[]{treeFile.readLong()});
+                lpOvf.addToKeyArrayAt(i, new ArrayList<>(Arrays.asList(treeFile.readLong())));
             }
 
             // update capacity
@@ -2165,9 +2165,9 @@ public class BPlusTree {
                 parsed++;
                 freeSlotPool.add(pindex);
                 lpOvf = (TreeLookupOverflowNode) readNode(pindex);
-                for(Object[] each : lpOvf.keyArray)
+                for(ArrayList<Object> each : lpOvf.keyArray)
                 {
-                    freeSlotPool.addLast((Long)each[0]);
+                    freeSlotPool.addLast((Long) each.get(0));
                 }
                 pindex = lpOvf.getNextPointer();
             }
@@ -2334,11 +2334,11 @@ public class BPlusTree {
         return arg + new String(new char[nBytes - size]).replace('\0', ' ');
     }
 
-    private Object[] padKey(Object[] key) throws MiniDBException
+    private ArrayList<Object> padKey(ArrayList<Object> key) throws MiniDBException
     {
         for (Integer i : conf.strColLocalId)
         {
-            key[i] = padString((String)key[i], conf.sizes.get(i));
+            key.set(i, padString((String) key.get(i), conf.sizes.get(i)));
         }
         return key;
     }

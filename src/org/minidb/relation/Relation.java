@@ -5,12 +5,12 @@ import org.minidb.bptree.BPlusConfiguration;
 import org.minidb.bptree.BPlusTree;
 import org.minidb.exception.MiniDBException;
 
+import org.minidb.bptree.TreeNode;
 import java.io.*;
-import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.stream.Collectors;
 
 public class Relation {
@@ -132,4 +132,97 @@ public class Relation {
         }
     }
 
+    // insert one row, cols are in the same order as the definition (the order in meta.colnames).
+    public void insert(ArrayList<Object> row) throws MiniDBException, IOException {
+        long rowID = meta.nextRowID++;
+        // check length
+        if(row.size() != meta.ncols)
+            throw new MiniDBException(String.format("%d values required but %d values are given.", meta.ncols, row.size()));
+
+        ArrayList<Integer> indeedNullCols = new ArrayList<>();
+        for(int i=0; i < meta.ncols; ++i)
+        {
+            if(!meta.nullableColIds.contains(i) && row.get(i) == null)
+            {// check nullable
+                throw new MiniDBException(String.format("column (%s) cannot be null!", meta.colnames.get(i)));
+            }
+            if(row.get(i) != null)
+            {
+                // check type
+                if(meta.coltypes.get(i) != row.get(i).getClass())
+                {
+                    throw new MiniDBException(
+                            String.format("Non-compatible type. Given: %s, Required: %s!",
+                                    row.get(i).getClass().getTypeName(),
+                                    meta.coltypes.get(i).getTypeName()));
+                }
+                // check string length
+                if(meta.coltypes.get(i) == String.class)
+                {
+                    int length = ((String) row.get(i)).getBytes(StandardCharsets.UTF_8).length;
+                    if(length > meta.colsizes.get(i))
+                    {
+                        throw new MiniDBException(
+                                String.format(
+                                        "column (%s) length exceeds! The value is (%s) with a length of %d (in bytes), but the limit is %d.",
+                                        meta.colnames.get(i),
+                                        (String) row.get(i), length, meta.colsizes.get(i)));
+                    }
+                }
+            }else
+            {// null columns
+                indeedNullCols.add(i);
+                if(meta.coltypes.get(i) == String.class)
+                {
+                    row.set(i, "");
+                }else if(meta.coltypes.get(i) == Integer.class)
+                {
+                    row.set(i, new Integer(0));
+                }else if(meta.coltypes.get(i) == Long.class)
+                {
+                    row.set(i, new Long(0));
+                }else if(meta.coltypes.get(i) == Double.class)
+                {
+                    row.set(i, new Double(0));
+                }else if(meta.coltypes.get(i) == Float.class)
+                {
+                    row.set(i, new Float(0));
+                }
+
+            }
+        }
+
+        // check unique constrains
+        for(BPlusTree tree : candidateKeyTrees)
+        {
+            ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
+            if(tree.search(thisRow).size() > 0)
+            {// duplicate keys
+                throw new MiniDBException(String.format("Value (%s) already exists!", TreeNode.keyToString(thisRow, tree.conf)));
+
+            }
+        }
+
+        // now it is time to insert!
+        data.insertPair(row, rowID);
+        for(BPlusTree tree : candidateKeyTrees)
+        {
+            ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
+            tree.insertPair(thisRow, rowID);
+        }
+        for(BPlusTree tree : indexTrees)
+        {
+            ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
+            tree.insertPair(thisRow, rowID);
+        }
+
+        // record null columns
+        for(int i=0; i < nullTrees.size(); ++i)
+        {
+            if(indeedNullCols.contains(i))
+            {
+                nullTrees.get(i).insertPair(new ArrayList<Object>(Arrays.asList(rowID)), -1L);
+            }
+        }
+    }
 }
