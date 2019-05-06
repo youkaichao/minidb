@@ -17,7 +17,7 @@ public class Relation {
     RelationMeta meta;
     String directory; // the directory to store the relation data
     BPlusTree data; // main tree for the data
-    ArrayList<BPlusTree> candidateKeyTrees, indexTrees, nullTrees;
+    ArrayList<BPlusTree> superKeyTrees, indexTrees, nullTrees;
 
     // create the relation, save the meta data and create data trees
     public void create() throws IOException, MiniDBException {
@@ -33,7 +33,7 @@ public class Relation {
 
         data.commitTree();
 
-        for(BPlusTree each : candidateKeyTrees)
+        for(BPlusTree each : superKeyTrees)
         {
             each.commitTree();
         }
@@ -71,7 +71,7 @@ public class Relation {
                 Paths.get(directory, "data").toString()
         );
 
-        candidateKeyTrees = new ArrayList<>(Arrays.asList(new BPlusTree[meta.candidateKeys.size()]));
+        superKeyTrees = new ArrayList<>(Arrays.asList(new BPlusTree[meta.superKeys.size()]));
         indexTrees = new ArrayList<>(Arrays.asList(new BPlusTree[meta.indices.size()]));
         nullTrees = new ArrayList<>(Arrays.asList(new BPlusTree[meta.nullableColIds.size()]));
 
@@ -112,10 +112,10 @@ public class Relation {
             indexTrees.set(i, tmp);
         }
 
-        // resume candidate key trees
-        for(int i = 0; i < candidateKeyTrees.size(); ++i)
+        // resume super key trees
+        for(int i = 0; i < superKeyTrees.size(); ++i)
         {
-            ArrayList<Integer> colId = meta.candidateKeys.get(i);
+            ArrayList<Integer> colId = meta.superKeys.get(i);
             BPlusTree tmp = new BPlusTree(
                     new BPlusConfiguration(
                             1024,
@@ -128,7 +128,7 @@ public class Relation {
                     mode,
                     Paths.get(directory, String.format("key.%d.data", i)).toString()
             );
-            candidateKeyTrees.set(i, tmp);
+            superKeyTrees.set(i, tmp);
         }
     }
 
@@ -193,7 +193,7 @@ public class Relation {
         }
 
         // check unique constrains
-        for(BPlusTree tree : candidateKeyTrees)
+        for(BPlusTree tree : superKeyTrees)
         {
             ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
             if(tree.search(thisRow).size() > 0)
@@ -205,7 +205,7 @@ public class Relation {
 
         // now it is time to insert!
         data.insertPair(row, rowID);
-        for(BPlusTree tree : candidateKeyTrees)
+        for(BPlusTree tree : superKeyTrees)
         {
             ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
             tree.insertPair(thisRow, rowID);

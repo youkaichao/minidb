@@ -1,10 +1,8 @@
 package org.minidb.relation;
-import org.junit.Assert;
 import org.junit.Test;
 import org.minidb.exception.MiniDBException;
 
 import java.io.*;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -18,8 +16,8 @@ public class TestRelation {
         meta.coltypes = new ArrayList<>(Arrays.asList(Integer.class, Double.class, String.class));
         meta.colsizes = new ArrayList<>(Arrays.asList(4, 8, 5));
         meta.nullableColIds = new ArrayList<>(Arrays.asList(2));
-        meta.candidateKeys = new ArrayList<ArrayList<Integer>>();
-        meta.candidateKeys.add(new ArrayList<Integer>(Arrays.asList(0)));
+        meta.superKeys = new ArrayList<ArrayList<Integer>>();
+        meta.superKeys.add(new ArrayList<Integer>(Arrays.asList(0)));
         meta.indices = new ArrayList<ArrayList<Integer>>();
         meta.indices.add(new ArrayList<Integer>(Arrays.asList(1)));
 

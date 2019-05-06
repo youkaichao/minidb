@@ -14,9 +14,9 @@ public class RelationMeta implements Serializable {
     ArrayList<Type> coltypes; // column types
     ArrayList<Integer> colsizes; // column sizes. (esp. for variable length string)
     ArrayList<Integer> nullableColIds; // nullable columns. other columns are non-nullable
-    // candidate key is just the abstraction of uniqueness (on one or multiple columns).
-    // colIDs for candidate keys (primary key is just a normal candidate key)
-    ArrayList<ArrayList<Integer>> candidateKeys;
+    // super key is just the abstraction of uniqueness (on one or multiple columns).
+    // colIDs for super keys (primary key is just a normal super key)
+    ArrayList<ArrayList<Integer>> superKeys;
     // index is just the abstraction of non-uniqueness.
     // colIDs for indices
     ArrayList<ArrayList<Integer>> indices;
@@ -28,7 +28,7 @@ public class RelationMeta implements Serializable {
         if(coltypes == null) return false;
         if(colsizes == null) return false;
         if(nullableColIds == null) return false;
-        if(candidateKeys == null) return false;
+        if(superKeys == null) return false;
         if(indices == null) return false;
         if(ncols <= 0) return false;
         if(ncols != colnames.size()) return false;
@@ -66,7 +66,7 @@ public class RelationMeta implements Serializable {
         {
             if(!(each >= 0 && each < ncols)) return false;
         }
-        for(ArrayList<Integer> each : candidateKeys)
+        for(ArrayList<Integer> each : superKeys)
         {
             for(Integer each_each : each)
             {
@@ -83,7 +83,7 @@ public class RelationMeta implements Serializable {
 
         // columns concerned with candiate keys and indices are not nullable
         HashSet<Integer> nonNullableCols = new HashSet<>();
-        for(ArrayList<Integer> each : candidateKeys)
+        for(ArrayList<Integer> each : superKeys)
         {
             nonNullableCols.addAll(each);
         }
