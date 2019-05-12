@@ -9,17 +9,17 @@ import java.util.HashSet;
 
 public class RelationMeta implements Serializable {
     long nextRowID; // the next available row ID
-    int ncols; // number of columns
-    ArrayList<String> colnames; // column names
-    ArrayList<Type> coltypes; // column types
-    ArrayList<Integer> colsizes; // column sizes. (esp. for variable length string)
-    ArrayList<Integer> nullableColIds; // nullable columns. other columns are non-nullable
+    public int ncols; // number of columns
+    public ArrayList<String> colnames; // column names
+    public ArrayList<Type> coltypes; // column types
+    public ArrayList<Integer> colsizes; // column sizes. (esp. for variable length string)
+    public ArrayList<Integer> nullableColIds; // nullable columns. other columns are non-nullable
     // super key is just the abstraction of uniqueness (on one or multiple columns).
     // colIDs for super keys (primary key is just a normal super key)
-    ArrayList<ArrayList<Integer>> superKeys;
+    public ArrayList<ArrayList<Integer>> superKeys;
     // index is just the abstraction of non-uniqueness.
     // colIDs for indices
-    ArrayList<ArrayList<Integer>> indices;
+    public ArrayList<ArrayList<Integer>> indices;
 
     // validate the meta configuration
     public boolean validate() throws MiniDBException

@@ -6,16 +6,19 @@ import org.minidb.bptree.BPlusTree;
 import org.minidb.exception.MiniDBException;
 
 import org.minidb.bptree.TreeNode;
+import org.minidb.utils.Misc;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 public class Relation {
-    RelationMeta meta;
-    String directory; // the directory to store the relation data
+    public RelationMeta meta;
+    public String directory; // the directory to store the relation data
     BPlusTree data; // main tree for the data
     ArrayList<BPlusTree> superKeyTrees, indexTrees, nullTrees;
 
@@ -25,6 +28,16 @@ public class Relation {
         meta.validate();
         meta.write(Paths.get(directory, "meta").toString());
         createOrResumeData(true);
+    }
+
+    public void drop() throws IOException {
+        Misc.rmDir(directory);
+    }
+
+    public void deleteAllData() throws IOException, MiniDBException {
+        drop();
+        new File(directory).mkdir();
+        create();
     }
 
     // close the relation, save meta data and commit trees.
