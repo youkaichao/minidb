@@ -4,12 +4,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.LinkedList;
 
-/**
- * Class that is responsible for handling the overflow blocks.
- *
- * Although it is derived from the TreeNode class we *don't* use
- * the key array at all (this could be improved but... well...)
- */
+
 @SuppressWarnings("unused")
 class TreeOverflow extends TreeNode {
 
@@ -57,14 +52,6 @@ class TreeOverflow extends TreeNode {
 
 
     /**
-     *
-     * Overflow node write structure is as follows:
-     *
-     *  -- node type -- (2 bytes)
-     *  -- next pointer -- (8 bytes)
-     *  -- prev pointer -- (8 bytes)
-     *  -- values -- (max size * satellite size)
-     *
      * @param r pointer to *opened* B+ tree file
      * @throws IOException is thrown when an I/O operation fails
      */
@@ -77,37 +64,19 @@ class TreeOverflow extends TreeNode {
         // now write the node type
         r.writeShort(getPageType());
 
-        // write the next pointer
-        r.writeLong(nextPagePointer);
-
         // write the prev pointer
         r.writeLong(prevPagePointer);
+
+        // write the next pointer
+        r.writeLong(nextPagePointer);
 
         // then write the current capacity
         r.writeInt(getCurrentCapacity());
 
+        conf.writeKey(r, getKeyAt(0));
+
         // now write the values
         for(int i = 0; i < getCurrentCapacity(); i++)
             {r.writeLong(valueList.get(i));}
-
-        // annoying correction
-        if(r.length() < getPageIndex()+conf.pageSize)
-            {r.setLength(getPageIndex()+conf.pageSize);}
-    }
-
-    @Override
-    public void printNode(BPlusConfiguration conf) {
-        System.out.println("\nPrinting node of type: " + getNodeType().toString() +
-                " with index: " + getPageIndex());
-        System.out.println("Current node capacity is: " + getCurrentCapacity());
-
-        System.out.println("Next pointer (index): " + getNextPagePointer());
-        System.out.println("Prev pointer (index): " + getPrevPagePointer());
-
-        System.out.println("\nPrinting stored values:");
-        for(int i = 0; i < valueList.size(); i++) {
-            System.out.print(" " + valueList.get(i) + " ");
-        }
-        System.out.println("\n");
     }
 }

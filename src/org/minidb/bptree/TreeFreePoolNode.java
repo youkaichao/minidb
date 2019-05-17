@@ -5,7 +5,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 
 @SuppressWarnings("unused")
-class TreeLookupOverflowNode extends TreeNode {
+class TreeFreePoolNode extends TreeNode {
 
     private long next; // next pointer
 
@@ -15,21 +15,12 @@ class TreeLookupOverflowNode extends TreeNode {
      *
      * @param pageIndex the page index in the file
      */
-    TreeLookupOverflowNode(long pageIndex, long nextPointer) {
-        super(TreeNodeType.TREE_LOOKUP_OVERFLOW, pageIndex);
+    TreeFreePoolNode(long pageIndex, long nextPointer) {
+        super(TreeNodeType.TREE_FREE_POOL, pageIndex);
         this.next = nextPointer;
     }
 
     /**
-     * Write a lookup page overflow to the page index; the node should
-     * have the following structure:
-     * <p>
-     * -- node type -- (2 bytes)
-     * -- next pointer -- (8 bytes)
-     * -- current capacity -- (4 bytes)
-     * <p>
-     * -- page indexes (in place of keys) (8 bytes)
-     *
      * @param r     an *already* open pointer which points to our B+ Tree file
      * @param conf  B+ Tree configuration
      * @throws IOException is thrown when an I/O operation fails
@@ -75,20 +66,5 @@ class TreeLookupOverflowNode extends TreeNode {
      */
     public void setNextPointer(long nextPointer) {
         this.next = nextPointer;
-    }
-
-    @Override
-    public void printNode(BPlusConfiguration conf) {
-        System.out.println("\nPrinting node of type: " + getNodeType().toString() +
-                " with index: " + getPageIndex());
-        System.out.println("Current node capacity is: " + getCurrentCapacity());
-
-        System.out.println("\nPrinting tuples: \n");
-        for (ArrayList<Object> key : keyArray) {
-            System.out.print((Long) key.get(0));
-        }
-
-        System.out.println("\n");
-
     }
 }

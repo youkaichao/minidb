@@ -2,8 +2,12 @@ package org.minidb.bptree;
 
 import org.minidb.exception.MiniDBException;
 
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.BiFunction;
 
 /**
@@ -18,17 +22,20 @@ public class BPlusConfiguration {
 
     public int pageSize;           // page size (in bytes)
     public int keySize;            // key size (in bytes)
-    public int entrySize;          // entry size (in bytes)
-    public int treeDegree;               // tree degree (internal node degree)
+    public int valueSize;          // entry size (in bytes)
     public int headerSize;               // header size (in bytes)
+
     public int leafHeaderSize;           // leaf node header size (in bytes)
     public int internalNodeHeaderSize;   // internal node header size (in bytes)
-    public int lookupOverflowHeaderSize; // lookup overflow page header size
-    public int lookupOverflowPageDegree; // lookup overflow page degree
+    public int overflowNodeHeaderSize;   // overflow node header size
+    public int freePoolNodeHeaderSize; // free pool page header size
+
     public int leafNodeDegree;           // leaf node degree
+    public int treeDegree;               // tree degree (internal node degree)
     public int overflowPageDegree;       // overflow page degree
-    public int lookupPageSize;           // look up page size
-    public int conditionThreshold;       // iterations to perform conditioning
+    public int freePoolNodeDegree; // lookup overflow page degree
+
+    public int trimFileThreshold;       // iterations to trim the file
     public boolean unique;               // whether one key can have multiple values. This corresponds to unique index.
     public final ArrayList<Type> types; // Keys may contain multiple columns. `types` tracks the type for each column
     // use Integer/Float etc for primitive types
@@ -38,11 +45,11 @@ public class BPlusConfiguration {
 
     /**
      * @param pageSize page size (default is 1024 bytes)
-     * @param entrySize satellite data (default is 8 bytes)
-     * @param conditionThreshold threshold to perform file conditioning (default is 1000)
+     * @param valueSize satellite data (default is 8 bytes)
+     * @param trimFileThreshold threshold to perform file conditioning (default is 1000)
      */
-    public BPlusConfiguration(int pageSize, int entrySize, ArrayList<Type> types, ArrayList<Integer> sizes, ArrayList<Integer> colIDs,
-                              boolean unique, int conditionThreshold)
+    public BPlusConfiguration(int pageSize, int valueSize, ArrayList<Type> types, ArrayList<Integer> sizes, ArrayList<Integer> colIDs,
+                              boolean unique, int trimFileThreshold)
             throws MiniDBException {
         this.unique = unique;
         this.colIDs = colIDs;
@@ -69,33 +76,29 @@ public class BPlusConfiguration {
             keySize += each;
         }
         this.pageSize = pageSize;   // page size (in bytes)
-        this.entrySize = entrySize; // entry size (in bytes)
-        this.conditionThreshold = conditionThreshold;       // iterations for conditioning
-        this.headerSize =                                   // header size in bytes
-                (Integer.SIZE * 4 + 4 * Long.SIZE) / 8;
-        this.internalNodeHeaderSize = (Short.SIZE + Integer.SIZE) / 8; // 6 bytes
+        this.valueSize = valueSize; // entry size (in bytes)
+        this.trimFileThreshold = trimFileThreshold;       // iterations for conditioning
+
+        this.headerSize = (Integer.SIZE * 3 + 4 * Long.SIZE) / 8;          // header size in bytes
+
         this.leafHeaderSize = (Short.SIZE + 2 * Long.SIZE + Integer.SIZE) / 8; // 22 bytes
-        this.lookupOverflowHeaderSize = 14;
-        this.lookupPageSize = pageSize - headerSize;        // lookup page size
-        // now calculate the tree degree
-        this.treeDegree = calculateDegree(2*keySize, internalNodeHeaderSize);
-        // leaf & overflow have the same header size.
-        this.leafNodeDegree = calculateDegree((2*keySize)+entrySize, leafHeaderSize);
-        this.overflowPageDegree = calculateDegree(entrySize, leafHeaderSize);
-        this.lookupOverflowPageDegree = calculateDegree(keySize,
-                lookupOverflowHeaderSize);
+        this.internalNodeHeaderSize = (Short.SIZE + Integer.SIZE) / 8; // 6 bytes
+        this.overflowNodeHeaderSize = (Short.SIZE + 2 * Long.SIZE + Integer.SIZE) / 8 + keySize; // 22 + keySize bytes
+        this.freePoolNodeHeaderSize = (Short.SIZE + Long.SIZE + Integer.SIZE) / 8; // 14 bytes
+
+        // now calculate the degree
+
+        // data: key and a value and an overflow pointer
+        this.leafNodeDegree = calculateDegree(keySize + valueSize + Long.SIZE / 8, leafHeaderSize);
+        // data: key and a pointer
+        this.treeDegree = (pageSize - internalNodeHeaderSize - Long.SIZE / 8) / (keySize + Long.SIZE / 8);
+        this.overflowPageDegree = calculateDegree(valueSize, overflowNodeHeaderSize);
+        this.freePoolNodeDegree = calculateDegree(Long.SIZE / 8, freePoolNodeHeaderSize);
         checkDegreeValidity();
     }
 
-    /**
-     * calculates the degree of a node (internal/leaf)
-     *
-     * @param elementSize the node element size (in bytes)
-     * @param elementHeaderSize the node header size (in bytes)
-     * @return the node degree
-     */
     private int calculateDegree(int elementSize, int elementHeaderSize)
-        {return((int) (((pageSize-elementHeaderSize)/(2.0*elementSize))/*+0.5*/));}
+        {return (pageSize-elementHeaderSize)/elementSize;}
 
     /**
      *
@@ -104,71 +107,34 @@ public class BPlusConfiguration {
      */
     private void checkDegreeValidity() {
         if (treeDegree < 2 || leafNodeDegree < 2 ||
-                overflowPageDegree < 2 || lookupOverflowPageDegree < 2)
+                overflowPageDegree < 2 || freePoolNodeDegree < 2)
             {throw new IllegalArgumentException("Can't have a degree < 2");}
     }
 
-    public int getFirstLookupPageElements() {
-        return lookupPageSize / keySize;
-    }
-
     public int getMaxInternalNodeCapacity()
-        {return((2*treeDegree) - 1);}
-
-    public int getMaxLeafNodeCapacity()
-        {return((2*leafNodeDegree) - 1);}
-
-    public int getMaxOverflowNodeCapacity() {
-        return ((2 * overflowPageDegree) - 1);
-    }
-
-    public int getMaxLookupPageOverflowCapacity() {
-        return ((2 * lookupOverflowPageDegree) - 1);
-    }
-
-    public int getMinLeafNodeCapacity()
-        {return(leafNodeDegree-1);}
+        {return treeDegree;}
 
     public int getMinInternalNodeCapacity()
-        {return(treeDegree-1);}
+        {return (treeDegree-1) / 2;}
 
-    public int getLookupPageDegree()
-        {return(pageSize/keySize);}
+    public int getMaxLeafNodeCapacity()
+        {return leafNodeDegree;}
 
-    public long getLookupPageOffset()
-        {return(pageSize-lookupPageSize);}
+    public int getMinLeafNodeCapacity()
+        {return (leafNodeDegree-1) / 2;}
 
-    public int getPageCountOffset() {
-        return (headerSize - 16);
+    public int getMaxOverflowNodeCapacity() {
+        return overflowPageDegree;
     }
 
-    public void printConfiguration() {
-        System.out.println("\n\nPrinting B+ Tree configuration\n");
-        System.out.println("Page size: " + pageSize + " (in bytes)");
-        System.out.println("Key size: " + keySize + " (in bytes)");
-        System.out.println("Entry size: " + entrySize + " (in bytes)");
-        System.out.println("File header size: " + headerSize + " (in bytes)");
-        System.out.println("Lookup space size: " + lookupPageSize +
-                " (in bytes)");
-        System.out.println("\nInternal Node Degree: " +
-                treeDegree +
-                "\n\t Min cap: " + getMinInternalNodeCapacity() +
-                "\n\t Max cap: " + getMaxInternalNodeCapacity() +
-                "\n\t Total header bytes: " + internalNodeHeaderSize);
+    public int getFreePoolNodeDegree()
+        {return freePoolNodeDegree;}
 
-        System.out.println("\nLeaf Node Degree: " +
-                leafNodeDegree +
-                "\n\t Min cap: " + getMinLeafNodeCapacity() +
-                "\n\t Max cap: " + getMaxLeafNodeCapacity() +
-                "\n\t Total header bytes: " + leafHeaderSize);
+    public long getFreePoolNodeOffset()
+        {return freePoolNodeHeaderSize;}
 
-        System.out.println("\nOverflow page Degree: " +
-                overflowPageDegree +
-                "\n\tExpected cap: " + getMaxOverflowNodeCapacity());
-
-        System.out.println("\nLookup page overflow Degree" +
-                overflowPageDegree +
-                "\n\tExpected cap: " + getMaxInternalNodeCapacity());
+    public int getPageCountOffset() {
+        return 12;
     }
 
     /*
@@ -257,5 +223,117 @@ public class BPlusConfiguration {
     public boolean eq(ArrayList<Object> key1, ArrayList<Object> key2)
     {
         return !neq(key1, key2);
+    }
+
+
+    public void writeKey(RandomAccessFile r, ArrayList<Object> key) throws IOException
+    {
+        for(int j = 0; j < types.size(); ++j)
+        {
+            if(types.get(j) == Integer.class)
+            {
+                r.writeInt((Integer) key.get(j));
+            }else if(types.get(j) == Long.class)
+            {
+                r.writeLong((Long) key.get(j));
+            }else if(types.get(j) == Float.class)
+            {
+                r.writeFloat((Float) key.get(j));
+            }else if(types.get(j) == Double.class)
+            {
+                r.writeDouble((Double) key.get(j));
+            }else if(types.get(j) == String.class)
+            {
+                r.write(((String) key.get(j)).getBytes(StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    public ArrayList<Object> readKey(RandomAccessFile r) throws IOException
+    {
+        ArrayList<Object> key = new ArrayList<>(Arrays.asList(new Object[types.size()]));
+        for(int j = 0; j < types.size(); ++j)
+        {
+            if(types.get(j) == Integer.class)
+            {
+                key.set(j, r.readInt());
+            }else if(types.get(j) == Long.class)
+            {
+                key.set(j, r.readLong());
+            }else if(types.get(j) == Float.class)
+            {
+                key.set(j, r.readFloat());
+            }else if(types.get(j) == Double.class)
+            {
+                key.set(j, r.readDouble());
+            }else if(types.get(j) == String.class)
+            {
+                //TODO possible not efficient. buffer is copied into the string?
+                byte[] buffer = new byte[sizes.get(j)];
+                r.read(buffer, 0, sizes.get(j));
+                key.set(j, new String(buffer, StandardCharsets.UTF_8));
+            }
+        }
+        return key;
+    }
+
+    public void printKey(ArrayList<Object> key)
+    {
+        System.out.println(keyToString(key));
+    }
+
+    public String keyToString(ArrayList<Object> key)
+    {
+        StringBuilder ans = new StringBuilder();
+        ans.append("[");
+        for(int i = 0; i < types.size(); ++i)
+        {
+            if(types.get(i) == Integer.class)
+            {
+                ans.append((Integer) key.get(i));
+                ans.append(' ');
+            }else if(types.get(i) == Long.class)
+            {
+                ans.append((Long) key.get(i));
+                ans.append(' ');
+            }else if(types.get(i) == Float.class)
+            {
+                ans.append((Float) key.get(i));
+                ans.append(' ');
+            }else if(types.get(i) == Double.class)
+            {
+                ans.append((Double) key.get(i));
+                ans.append(' ');
+            }else if(types.get(i) == String.class)
+            {
+                ans.append((String) key.get(i));
+                ans.append(' ');
+            }
+        }
+        ans.append("]");
+        return ans.toString();
+    }
+
+    private static String padString(String arg, int nBytes) throws MiniDBException
+    {
+        int size = arg.getBytes(StandardCharsets.UTF_8).length;
+        if(size > nBytes)
+        {
+            throw new MiniDBException(String.format(MiniDBException.StringLengthOverflow, nBytes, arg, size));
+        }
+        if(size == nBytes)
+        {
+            return arg;
+        }
+        return arg + new String(new char[nBytes - size]).replace('\0', ' ');
+    }
+
+    public ArrayList<Object> padKey(ArrayList<Object> key) throws MiniDBException
+    {
+        for (Integer i : strColLocalId)
+        {
+            key.set(i, padString((String) key.get(i), sizes.get(i)));
+        }
+        return key;
     }
 }

@@ -56,18 +56,6 @@ class TreeInternalNode extends TreeNode {
 
 
     /**
-     *
-     *  Internal node structure is as follows:
-     *
-     *  -- node type -- (2 bytes)
-     *  -- current capacity -- (4 bytes)
-     *
-     *  -- Key -- (8 bytes max size)
-     *
-     *  -- Pointers (8 bytes max size + 1)
-     *
-     *  we go like: k1 -- p0 -- k2 -- p1 ... kn -- pn+1
-     *
      * @param r pointer to *opened* B+ tree file
      * @throws IOException is thrown when an I/O exception is captured.
      */
@@ -77,7 +65,7 @@ class TreeInternalNode extends TreeNode {
 
         // update root index in the file
         if(this.isRoot()) {
-            r.seek(conf.headerSize-8);
+            r.seek(conf.headerSize-16L);
             r.writeLong(getPageIndex());
         }
 
@@ -92,35 +80,10 @@ class TreeInternalNode extends TreeNode {
 
         // now write Key/Pointer pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            TreeNode.writeKey(r, getKeyAt(i), conf);// Key
             r.writeLong(getPointerAt(i));   // Pointer
+            conf.writeKey(r, getKeyAt(i));
         }
         // final pointer.
         r.writeLong(getPointerAt(getCurrentCapacity()));
-
-        // annoying correction
-        if(r.length() < getPageIndex()+conf.pageSize)
-            {r.setLength(getPageIndex()+conf.pageSize);}
     }
-
-    @Override
-    public void printNode(BPlusConfiguration conf) {
-        System.out.println("\nPrinting node of type: " +
-                getNodeType().toString() + " with index: " +
-                getPageIndex());
-
-        System.out.println("Current node capacity is: " +
-                getCurrentCapacity());
-
-        System.out.println("\nPrinting stored Keys:");
-        for(ArrayList<Object> each : keyArray)
-        {
-            TreeNode.printKey(each, conf);
-        }
-        System.out.println("\nPrinting stored Pointers");
-        for(Long i : pointerArray)
-            {System.out.print(" " + i.toString() + " ");}
-        System.out.println();
-    }
-
 }

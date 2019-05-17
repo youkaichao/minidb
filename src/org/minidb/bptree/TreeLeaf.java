@@ -102,14 +102,6 @@ class TreeLeaf extends TreeNode {
     }
 
     /**
-     *
-     * Leaf node write structure is as follows:
-     *
-     *  -- node type -- (2 bytes)
-     *  -- next pointer -- (8 bytes)
-     *  -- prev pointer -- (8 bytes)
-     *  -- key/value pairs -- (max size * (key size + satellite size))
-     *
      * @param r pointer to *opened* B+ tree file
      * @param conf configuration parameter
      * @throws IOException is thrown when an I/O operation fails
@@ -120,7 +112,7 @@ class TreeLeaf extends TreeNode {
 
         // update root index in the file
         if(this.isRoot()) {
-            r.seek(conf.headerSize-8L);
+            r.seek(conf.headerSize-16L);
             r.writeLong(getPageIndex());
         }
 
@@ -130,45 +122,20 @@ class TreeLeaf extends TreeNode {
         // now write the node type
         r.writeShort(getPageType());
 
-        // write the next pointer
-        r.writeLong(nextPagePointer);
-
         // write the prev pointer
         r.writeLong(prevPagePointer);
+
+        // write the next pointer
+        r.writeLong(nextPagePointer);
 
         // then write the current capacity
         r.writeInt(getCurrentCapacity());
 
         // now write the Key/Value pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            writeKey(r, getKeyAt(i), conf);
-            r.writeLong(getOverflowPointerAt(i));
+            conf.writeKey(r, getKeyAt(i));
             r.writeLong(valueList.get(i));
+            r.writeLong(getOverflowPointerAt(i));
         }
-
-        // annoying correction
-        if(r.length() < getPageIndex()+conf.pageSize)
-            {r.setLength(getPageIndex()+conf.pageSize);}
     }
-
-    @Override
-    public void printNode(BPlusConfiguration conf) {
-        System.out.println("\nPrinting node of type: " + getNodeType().toString() +
-                " with index: " + getPageIndex());
-        System.out.println("Current node capacity is: " + getCurrentCapacity());
-
-        System.out.println("Next pointer (index): " + getNextPagePointer());
-        System.out.println("Prev pointer (index): " + getPrevPagePointer());
-
-        System.out.println("\nPrinting stored (Key, Value, ovf) tuples:");
-        for(int i = 0; i < keyArray.size(); i++) {
-            System.out.print(" (");
-            TreeNode.printKey(keyArray.get(i), conf);
-            System.out.print(", " +
-                    valueList.get(i) + ", " +
-                    overflowList.get(i) + ") ");
-        }
-        System.out.println("\n");
-    }
-
 }

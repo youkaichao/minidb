@@ -136,11 +136,11 @@ abstract public class TreeNode {
                 throw new MiniDBException(MiniDBException.InvalidBPTreeState);
             }
         } else {
-            if (isLookupPageOverflowNode()) {
+            if (isFreePoolNode()) {
                 if (beingDeleted && currentCapacity < 0) {
                     // "Cannot have less than 0 elements in a lookup overflow node when deleting it"
                     throw new MiniDBException(MiniDBException.InvalidBPTreeState);
-                } else if (currentCapacity > conf.getMaxLookupPageOverflowCapacity()) {
+                } else if (currentCapacity > conf.freePoolNodeDegree) {
                     // "Exceeded lookup overflow node allowed capacity (node)"
                     throw new MiniDBException(MiniDBException.InvalidBPTreeState);
                 }
@@ -245,8 +245,8 @@ abstract public class TreeNode {
      *
      * @return true if the node is a lookup page overflow node, false otherwise
      */
-    boolean isLookupPageOverflowNode() {
-        return (nodeType == TreeNodeType.TREE_LOOKUP_OVERFLOW);
+    boolean isFreePoolNode() {
+        return (nodeType == TreeNodeType.TREE_FREE_POOL);
     }
 
     /**
@@ -405,7 +405,7 @@ abstract public class TreeNode {
             case TREE_LEAF_OVERFLOW:    // LEAF OVERFLOW NODE
                 {return(5);}
 
-            case TREE_LOOKUP_OVERFLOW:  // TREE LOOKUP OVERFLOW
+            case TREE_FREE_POOL:  // TREE FREE POOL
             {
                 return (6);
             }
@@ -430,131 +430,12 @@ abstract public class TreeNode {
     public abstract void writeNode(RandomAccessFile r, BPlusConfiguration conf)
             throws IOException;
 
-    /**
-     *
-     * Each class must implement it's own printing method.
-     *
-     */
-    public abstract void printNode(BPlusConfiguration conf);
-
-    /*
-    helper function to write a key consisting of multiple columns
-    * */
-    public static void writeKey(RandomAccessFile r, ArrayList<Object> key, BPlusConfiguration conf) throws IOException
-    {
-        for(int j = 0; j < conf.types.size(); ++j)
-        {
-            if(conf.types.get(j) == Integer.class)
-            {
-                r.writeInt((Integer) key.get(j));
-            }else if(conf.types.get(j) == Long.class)
-            {
-                r.writeLong((Long) key.get(j));
-            }else if(conf.types.get(j) == Float.class)
-            {
-                r.writeFloat((Float) key.get(j));
-            }else if(conf.types.get(j) == Double.class)
-            {
-                r.writeDouble((Double) key.get(j));
-            }else if(conf.types.get(j) == String.class)
-            {
-                r.write(((String) key.get(j)).getBytes(StandardCharsets.UTF_8));
-            }
-        }
-    }
-
-    /*
-    helper function to read a key consisting of multiple columns
-    * */
-    public static ArrayList<Object> readKey(RandomAccessFile r, BPlusConfiguration conf) throws IOException
-    {
-        ArrayList<Object> key = new ArrayList<>(Arrays.asList(new Object[conf.types.size()]));
-        for(int j = 0; j < conf.types.size(); ++j)
-        {
-            if(conf.types.get(j) == Integer.class)
-            {
-                key.set(j, r.readInt());
-            }else if(conf.types.get(j) == Long.class)
-            {
-                key.set(j, r.readLong());
-            }else if(conf.types.get(j) == Float.class)
-            {
-                key.set(j, r.readFloat());
-            }else if(conf.types.get(j) == Double.class)
-            {
-                key.set(j, r.readDouble());
-            }else if(conf.types.get(j) == String.class)
-            {
-                //TODO possible not efficient. buffer is copied into the string?
-                byte[] buffer = new byte[conf.sizes.get(j)];
-                r.read(buffer, 0, conf.sizes.get(j));
-                key.set(j, new String(buffer, StandardCharsets.UTF_8));
-            }
-        }
-        return key;
-    }
-
-    public static void printKey(ArrayList<Object> key, BPlusConfiguration conf)
-    {
-        for(int i = 0; i < conf.types.size(); ++i)
-        {
-            if(conf.types.get(i) == Integer.class)
-            {
-                System.out.println((Integer) key.get(i));
-            }else if(conf.types.get(i) == Long.class)
-            {
-                System.out.println((Long) key.get(i));
-            }else if(conf.types.get(i) == Float.class)
-            {
-                System.out.println((Float) key.get(i));
-            }else if(conf.types.get(i) == Double.class)
-            {
-                System.out.println((Double) key.get(i));
-            }else if(conf.types.get(i) == String.class)
-            {
-                System.out.println((String) key.get(i));
-            }
-        }
-    }
-
-    public static String keyToString(ArrayList<Object> key, BPlusConfiguration conf)
-    {
-        StringBuilder ans = new StringBuilder();
-        ans.append("[");
-        for(int i = 0; i < conf.types.size(); ++i)
-        {
-            if(conf.types.get(i) == Integer.class)
-            {
-                ans.append((Integer) key.get(i));
-                ans.append(' ');
-            }else if(conf.types.get(i) == Long.class)
-            {
-                ans.append((Long) key.get(i));
-                ans.append(' ');
-            }else if(conf.types.get(i) == Float.class)
-            {
-                ans.append((Float) key.get(i));
-                ans.append(' ');
-            }else if(conf.types.get(i) == Double.class)
-            {
-                ans.append((Double) key.get(i));
-                ans.append(' ');
-            }else if(conf.types.get(i) == String.class)
-            {
-                ans.append((String) key.get(i));
-                ans.append(' ');
-            }
-        }
-        ans.append("]");
-        return ans.toString();
-    }
-
     enum TreeNodeType {
         TREE_LEAF,
         TREE_INTERNAL_NODE,
         TREE_ROOT_INTERNAL,
         TREE_ROOT_LEAF,
         TREE_LEAF_OVERFLOW,
-        TREE_LOOKUP_OVERFLOW
+        TREE_FREE_POOL
     }
 }

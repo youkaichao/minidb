@@ -198,7 +198,7 @@ public class Relation {
             ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
             if(tree.search(thisRow).size() > 0)
             {// duplicate keys
-                throw new MiniDBException(String.format("Value (%s) already exists!", TreeNode.keyToString(thisRow, tree.conf)));
+                throw new MiniDBException(String.format("Value (%s) already exists!", tree.conf.keyToString(thisRow)));
 
             }
         }

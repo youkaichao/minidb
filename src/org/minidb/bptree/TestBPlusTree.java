@@ -13,15 +13,25 @@ import java.util.LinkedList;
 
 public class TestBPlusTree {
 
-    private static BPlusTree createCommonTree(boolean unique) throws Exception, IOException, MiniDBException
+    private static BPlusTree commonTree(boolean unique, boolean create) throws Exception, IOException, MiniDBException
     {
-        boolean recreateTree = true;
+        boolean recreateTree = create;
         ArrayList<Type> types = new ArrayList<>(Arrays.asList(Integer.class, Double.class, String.class));
         ArrayList<Integer> sizes = new ArrayList<>(Arrays.asList(4, 8, 10));
         ArrayList<Integer> colIDs = new ArrayList<>(Arrays.asList(0, 1, 2));
         BPlusConfiguration btconf = new BPlusConfiguration(256, 8, types, sizes, colIDs, unique,1000);
         BPlusTree bt = new BPlusTree(btconf, recreateTree ? "rw+" : "rw", "file.data");
         return bt;
+    }
+
+    private static BPlusTree createCommonTree(boolean unique) throws Exception, IOException, MiniDBException
+    {
+        return commonTree(unique, true);
+    }
+
+    private static BPlusTree resumeCommonTree(boolean unique) throws Exception, IOException, MiniDBException
+    {
+        return commonTree(unique, false);
     }
 
     private static void assertSearchEqual(BPlusTree bt, ArrayList<Object> key, Long[] expected) throws Exception
@@ -268,5 +278,65 @@ public class TestBPlusTree {
                 bt.rangeSearch(new ArrayList<>(Arrays.asList(100, 200.0, "55")), new ArrayList<>(Arrays.asList(100, 200.0, "66")), true, true),
                 new Long[]{});
 //        bt.commitTree();
+    }
+
+    @Test
+    public void testMassiveUniqueInsert()throws Exception, IOException, MiniDBException{
+        BPlusTree bt = createCommonTree(true);
+        for(int i = 0; i < 1000; ++ i)
+        {
+            bt.insertPair(new ArrayList<>(Arrays.asList(i, 200.0, "12")), i);
+        }
+        int start = 20, end = 50;
+        Long[] ans = new Long[end - start];
+        for (int i = start; i < end; ++i)
+        {
+            ans[i - start] = new Long(i);
+        }
+        assertSetEqual(
+                bt.rangeSearch(new ArrayList<>(Arrays.asList(start, 200.0, "12")), new ArrayList<>(Arrays.asList(end, 200.0, "12")), true, false),
+                ans);
+    }
+
+    @Test
+    public void testMassiveDuplicateInsert()throws Exception, IOException, MiniDBException{
+        BPlusTree bt = createCommonTree(false);
+        for(int i = 0; i < 1000; ++ i)
+        {
+            bt.insertPair(new ArrayList<>(Arrays.asList(i, 200.0, "12")), i);
+            bt.insertPair(new ArrayList<>(Arrays.asList(i, 200.0, "12")), i+1);
+        }
+        int start = 20, end = 50;
+        Long[] ans = new Long[(end - start) * 2];
+        for (int i = start; i < end; ++i)
+        {
+            ans[(i - start) * 2] = new Long(i);
+            ans[(i - start) * 2 + 1] = new Long(i + 1);
+        }
+        assertSetEqual(
+                bt.rangeSearch(new ArrayList<>(Arrays.asList(start, 200.0, "12")), new ArrayList<>(Arrays.asList(end, 200.0, "12")), true, false),
+                ans);
+    }
+
+    @Test
+    public void testMassiveDuplicateResume()throws Exception, IOException, MiniDBException{
+        BPlusTree bt = createCommonTree(false);
+        for(int i = 0; i < 1000; ++ i)
+        {
+            bt.insertPair(new ArrayList<>(Arrays.asList(i, 200.0, "12")), i);
+            bt.insertPair(new ArrayList<>(Arrays.asList(i, 200.0, "12")), i+1);
+        }
+        bt.commitTree();
+        bt = resumeCommonTree(false);
+        int start = 20, end = 50;
+        Long[] ans = new Long[(end - start) * 2];
+        for (int i = start; i < end; ++i)
+        {
+            ans[(i - start) * 2] = new Long(i);
+            ans[(i - start) * 2 + 1] = new Long(i + 1);
+        }
+        assertSetEqual(
+                bt.rangeSearch(new ArrayList<>(Arrays.asList(start, 200.0, "12")), new ArrayList<>(Arrays.asList(end, 200.0, "12")), true, false),
+                ans);
     }
 }
