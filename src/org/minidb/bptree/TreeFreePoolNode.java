@@ -2,6 +2,8 @@ package org.minidb.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 
 @SuppressWarnings("unused")
@@ -33,19 +35,23 @@ class TreeFreePoolNode extends TreeNode {
         // account for the header page as well
         r.seek(getPageIndex());
 
+        byte[] buffer = new byte[conf.pageSize];
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+
         // write the node type
-        r.writeShort(getPageType());
+        bbuffer.putShort(getPageType());
 
         // write the next pointer
-        r.writeLong(next);
+        bbuffer.putLong(next);
 
         // write current capacity
-        r.writeInt(getCurrentCapacity());
+        bbuffer.putInt(getCurrentCapacity());
 
         // now write the index values
         for (int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong((Long) getKeyAt(i).get(0));
+            bbuffer.putLong((Long) getKeyAt(i).get(0));
         }
+        r.write(buffer);
 
     }
 

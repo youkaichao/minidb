@@ -319,6 +319,24 @@ public class TestBPlusTree {
     }
 
     @Test
+    public void testExtremeDuplicateInsert()throws Exception, IOException, MiniDBException{
+        BPlusTree bt = createCommonTree(false);
+        for(int i = 0; i < 100; ++ i)
+        {
+            bt.insertPair(new ArrayList<>(Arrays.asList(0, 200.0, "12")), i);
+        }
+        int start = 0, end = 100;
+        Long[] ans = new Long[(end - start)];
+        for (int i = start; i < end; ++i)
+        {
+            ans[i] = new Long(i);
+        }
+        assertSetEqual(
+                bt.rangeSearch(new ArrayList<>(Arrays.asList(start, 200.0, "12")), new ArrayList<>(Arrays.asList(end, 200.0, "12")), true, true),
+                ans);
+    }
+
+    @Test
     public void testMassiveDuplicateResume()throws Exception, IOException, MiniDBException{
         BPlusTree bt = createCommonTree(false);
         for(int i = 0; i < 1000; ++ i)

@@ -4,6 +4,8 @@ import org.minidb.exception.MiniDBException;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.LinkedList;
 
 /**
@@ -119,23 +121,27 @@ class TreeLeaf extends TreeNode {
         // account for the header page as well.
         r.seek(getPageIndex());
 
+        byte[] buffer = new byte[conf.pageSize];
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+
         // now write the node type
-        r.writeShort(getPageType());
+        bbuffer.putShort(getPageType());
 
         // write the prev pointer
-        r.writeLong(prevPagePointer);
+        bbuffer.putLong(prevPagePointer);
 
         // write the next pointer
-        r.writeLong(nextPagePointer);
+        bbuffer.putLong(nextPagePointer);
 
         // then write the current capacity
-        r.writeInt(getCurrentCapacity());
+        bbuffer.putInt(getCurrentCapacity());
 
         // now write the Key/Value pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            conf.writeKey(r, getKeyAt(i));
-            r.writeLong(valueList.get(i));
-            r.writeLong(getOverflowPointerAt(i));
+            conf.writeKey(bbuffer, getKeyAt(i));
+            bbuffer.putLong(valueList.get(i));
+            bbuffer.putLong(getOverflowPointerAt(i));
         }
+        r.write(buffer);
     }
 }

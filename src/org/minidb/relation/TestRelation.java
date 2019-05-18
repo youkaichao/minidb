@@ -3,6 +3,8 @@ import org.junit.Test;
 import org.minidb.exception.MiniDBException;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -26,8 +28,29 @@ public class TestRelation {
         new File(relation.directory).mkdirs();
         relation.meta = meta;
         relation.create();
-        relation.insert(new ArrayList<Object>(Arrays.asList(16, 0.0, "you")));
+        for (int i = 0; i < 100; i++) {
+            relation.insert(new ArrayList<Object>(Arrays.asList(i, new Double(i), "you")));
+        }
+        for (int i = 0; i < 90; i++) {
+            relation.delete(i);
+        }
         relation.close();
         relation.resume();
+        System.out.println(relation.data.getElementCount());
+    }
+
+
+    @Test
+    public void test1()
+    {
+        byte[] buffer = new byte[256];
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        bbuffer.putLong(1);
+        bbuffer.putLong(2);
+        bbuffer.position(0);
+        System.out.println(bbuffer.getLong());
+        System.out.println(bbuffer.getLong());
+        // ;
+        System.out.println(bbuffer.position());
     }
 }

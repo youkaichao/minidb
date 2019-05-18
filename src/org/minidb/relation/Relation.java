@@ -1,25 +1,25 @@
 package org.minidb.relation;
 
 
-import org.minidb.bptree.BPlusConfiguration;
-import org.minidb.bptree.BPlusTree;
+import org.minidb.bptree.*;
 import org.minidb.exception.MiniDBException;
 
-import org.minidb.bptree.TreeNode;
 import org.minidb.utils.Misc;
 
+import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.stream.Collectors;
 
 public class Relation {
     public RelationMeta meta;
     public String directory; // the directory to store the relation data
-    BPlusTree data; // main tree for the data
+    MainDataFile data; // main tree for the data
     ArrayList<BPlusTree> superKeyTrees, indexTrees, nullTrees;
 
     // create the relation, save the meta data and create data trees
@@ -44,7 +44,7 @@ public class Relation {
     public void close() throws IOException, MiniDBException {
         meta.write(Paths.get(directory, "meta").toString());
 
-        data.commitTree();
+        data.close();
 
         for(BPlusTree each : superKeyTrees)
         {
@@ -78,10 +78,22 @@ public class Relation {
         {
             colIDs.add(i);
         }
-        data = new BPlusTree(
-                new BPlusConfiguration(1024, 8, meta.coltypes, meta.colsizes, colIDs, false,1000),
+        data = new MainDataFile(
+                new MainDataConfiguration(meta.coltypes, meta.colsizes, colIDs),
                 mode,
-                Paths.get(directory, "data").toString()
+                Paths.get(directory, "data").toString(),
+                new BPlusTree(
+                        new BPlusConfiguration(
+                                1024,
+                                8,
+                                new ArrayList<>(Arrays.asList(Long.class)),
+                                new ArrayList<>(Arrays.asList(8)),
+                                new ArrayList<>(Arrays.asList(0)),
+                                true,
+                                1000),
+                        mode,
+                        Paths.get(directory, "rowID2position").toString()
+                )
         );
 
         superKeyTrees = new ArrayList<>(Arrays.asList(new BPlusTree[meta.superKeys.size()]));
@@ -217,7 +229,7 @@ public class Relation {
         }
 
         // now it is time to insert!
-        data.insertPair(row, rowID);
+        data.insertRow(row, rowID);
         for(BPlusTree tree : superKeyTrees)
         {
             ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
@@ -236,6 +248,34 @@ public class Relation {
             {
                 nullTrees.get(i).insertPair(new ArrayList<Object>(Arrays.asList(rowID)), -1L);
             }
+        }
+    }
+
+    public void delete(long rowID) throws IOException, MiniDBException {
+        ArrayList<Object> row = data.readRow(rowID);
+        data.deleteRow(rowID);
+
+        for(BPlusTree tree : superKeyTrees)
+        {
+            ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
+            tree.deletePair(thisRow, rowID);
+        }
+        for(BPlusTree tree : indexTrees)
+        {
+            ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
+            tree.deletePair(thisRow, rowID);
+        }
+
+        for(BPlusTree tree : nullTrees)
+        {
+            tree.deletePair(new ArrayList<Object>(Arrays.asList(rowID)), -1L);
+        }
+    }
+
+    public void delete(Collection<Long> rowIDs) throws IOException, MiniDBException {
+        for(Long rowID : rowIDs)
+        {
+            delete(rowID);
         }
     }
 }

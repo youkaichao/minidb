@@ -5,6 +5,8 @@ import org.minidb.exception.MiniDBException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.*;
 
 /**
@@ -47,7 +49,6 @@ public class BPlusTree {
     private long totalPages; // number of pages in the file (>= 1, used pages + free pages), can be counted from file length
     private int deleteIterations;
 
-    // TODO
     /**
      * @param conf B+ Tree configuration instance
      * @param mode I/O mode
@@ -95,14 +96,12 @@ public class BPlusTree {
         }
     }
 
-    // TODO
     // Is this a unique index?
     public boolean isUnique()
     {
         return conf.unique;
     }
 
-    // TODO
     /**
      * Insert the (key, value) pair into the tree
      * @param key key to add
@@ -140,7 +139,6 @@ public class BPlusTree {
             {insertNonFull(root, key, value);}
     }
 
-    // TODO
     /**
      * This function is inspired from the one given in CLRS for inserting a key to
      * a B-Tree but as splitTreeNode has been (heavily) modified in order to be used
@@ -269,7 +267,6 @@ public class BPlusTree {
         }
     }
 
-    // TODO
     /**
      *
      * This function is based on the similar function prototype that
@@ -724,6 +721,7 @@ public class BPlusTree {
                     // delete one value and read a value from the overflow page.
                     TreeOverflow povf = (TreeOverflow)readNode(ovfpointer);
                     l.valueList.set(i, povf.valueList.remove(0));
+                    povf.decrementCapacity(conf);
                     // persist
                     povf.writeNode(treeFile, conf);
                 }
@@ -1817,18 +1815,22 @@ public class BPlusTree {
         if(index <= 0)
             {return(null);}
         treeFile.seek(index);
+        byte[] buffer = new byte[conf.pageSize];
+        treeFile.read(buffer);
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+
         // get the page type
-        TreeNode.TreeNodeType nt = getPageType(treeFile.readShort());
+        TreeNode.TreeNodeType nt = getPageType(bbuffer.getShort());
 
         if(isInternalNode(nt)) {
             TreeInternalNode tnode = new TreeInternalNode(nt, index);
-            int curCap = treeFile.readInt();
+            int curCap = bbuffer.getInt();
             for(int i = 0; i < curCap; i++) {
-                tnode.addPointerAt(i, treeFile.readLong());
-                tnode.addToKeyArrayAt(i, conf.readKey(treeFile));
+                tnode.addPointerAt(i, bbuffer.getLong());
+                tnode.addToKeyArrayAt(i, conf.readKey(bbuffer));
             }
             // add the final pointer
-            tnode.addPointerAt(curCap, treeFile.readLong());
+            tnode.addPointerAt(curCap, bbuffer.getLong());
             // update the capacity
             tnode.setCurrentCapacity(curCap);
             // set deleted flag
@@ -1836,31 +1838,31 @@ public class BPlusTree {
             return(tnode);
         }
         else if(isOverflowPage(nt)) {
-            long prevptr = treeFile.readLong();
-            long nextptr = treeFile.readLong();
-            int curCap = treeFile.readInt();
+            long prevptr = bbuffer.getLong();
+            long nextptr = bbuffer.getLong();
+            int curCap = bbuffer.getInt();
             TreeOverflow tnode = new TreeOverflow(nextptr, prevptr, index);
-            tnode.addToKeyArrayAt(0, conf.readKey(treeFile));
+            tnode.addToKeyArrayAt(0, conf.readKey(bbuffer));
 
             // read entries
             for(int i = 0; i < curCap; i++) {
-                tnode.addToValueList(i, treeFile.readLong());
+                tnode.addToValueList(i, bbuffer.getLong());
             }
             // update capacity
             tnode.setCurrentCapacity(curCap);
             return(tnode);
         }
         else if (isLeaf(nt)) {
-            long prevptr = treeFile.readLong();
-            long nextptr = treeFile.readLong();
-            int curCap = treeFile.readInt();
+            long prevptr = bbuffer.getLong();
+            long nextptr = bbuffer.getLong();
+            int curCap = bbuffer.getInt();
             TreeLeaf tnode = new TreeLeaf(nextptr, prevptr, nt, index);
 
             // read entries
             for(int i = 0; i < curCap; i++) {
-                tnode.addToKeyArrayAt(i, conf.readKey(treeFile));
-                tnode.addToValueList(i, treeFile.readLong());
-                tnode.addToOverflowList(i, treeFile.readLong());
+                tnode.addToKeyArrayAt(i, conf.readKey(bbuffer));
+                tnode.addToValueList(i, bbuffer.getLong());
+                tnode.addToOverflowList(i, bbuffer.getLong());
             }
             // update capacity
             tnode.setCurrentCapacity(curCap);
@@ -1870,13 +1872,13 @@ public class BPlusTree {
 
             return(tnode);
         } else {
-            long nextptr = treeFile.readLong();
-            int curCap = treeFile.readInt();
+            long nextptr = bbuffer.getLong();
+            int curCap = bbuffer.getInt();
             TreeFreePoolNode lpOvf = new TreeFreePoolNode(index, nextptr);
 
             // now loop through the
             for (int i = 0; i < curCap; i++) {
-                lpOvf.addToKeyArrayAt(i, new ArrayList<>(Arrays.asList(treeFile.readLong())));
+                lpOvf.addToKeyArrayAt(i, new ArrayList<>(Arrays.asList(bbuffer.getLong())));
             }
 
             // update capacity
@@ -1974,7 +1976,6 @@ public class BPlusTree {
         root = readNode(rootIndex);
     }
 
-    // TODO
     /**
      * Writes the file header containing all the juicy details
      *
@@ -2005,7 +2006,6 @@ public class BPlusTree {
         this.treeFile.close();
     }
 
-    // TODO
     /**
      * Generate the first available index for a page. If no unused pages, allocate new pages.
      */

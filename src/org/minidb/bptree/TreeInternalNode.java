@@ -2,6 +2,8 @@ package org.minidb.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
@@ -72,18 +74,21 @@ class TreeInternalNode extends TreeNode {
         // account for the header page as well.
         r.seek(getPageIndex());
 
+        byte[] buffer = new byte[conf.pageSize];
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
         // write the node type
-        r.writeShort(getPageType());
+        bbuffer.putShort(getPageType());
 
         // write current capacity
-        r.writeInt(getCurrentCapacity());
+        bbuffer.putInt(getCurrentCapacity());
 
         // now write Key/Pointer pairs
         for(int i = 0; i < getCurrentCapacity(); i++) {
-            r.writeLong(getPointerAt(i));   // Pointer
-            conf.writeKey(r, getKeyAt(i));
+            bbuffer.putLong(getPointerAt(i));   // Pointer
+            conf.writeKey(bbuffer, getKeyAt(i));
         }
         // final pointer.
-        r.writeLong(getPointerAt(getCurrentCapacity()));
+        bbuffer.putLong(getPointerAt(getCurrentCapacity()));
+        r.write(buffer);
     }
 }

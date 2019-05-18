@@ -2,6 +2,8 @@ package org.minidb.bptree;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.LinkedList;
 
 
@@ -61,22 +63,25 @@ class TreeOverflow extends TreeNode {
         // account for the header page as well.
         r.seek(getPageIndex());
 
+        byte[] buffer = new byte[conf.pageSize];
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
         // now write the node type
-        r.writeShort(getPageType());
+        bbuffer.putShort(getPageType());
 
         // write the prev pointer
-        r.writeLong(prevPagePointer);
+        bbuffer.putLong(prevPagePointer);
 
         // write the next pointer
-        r.writeLong(nextPagePointer);
+        bbuffer.putLong(nextPagePointer);
 
         // then write the current capacity
-        r.writeInt(getCurrentCapacity());
+        bbuffer.putInt(getCurrentCapacity());
 
-        conf.writeKey(r, getKeyAt(0));
+        conf.writeKey(bbuffer, getKeyAt(0));
 
         // now write the values
         for(int i = 0; i < getCurrentCapacity(); i++)
-            {r.writeLong(valueList.get(i));}
+            {bbuffer.putLong(valueList.get(i));}
+        r.write(buffer);
     }
 }
