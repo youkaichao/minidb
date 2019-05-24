@@ -13,6 +13,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class Database {
+    public String getDirectory() {
+        return directory;
+    }
+
     String directory; // the directory to store the database
     ArrayList<String> relations; // the relations in the database
     HashMap<String, Relation> tableNameToTable;
@@ -20,6 +24,12 @@ public class Database {
     public Database()
     {
         directory = "";
+        relations = new ArrayList<>();
+        tableNameToTable = new HashMap<String, Relation>();
+    }
+
+    public Database(String directory) {
+        this.directory = directory;
         relations = new ArrayList<>();
         tableNameToTable = new HashMap<String, Relation>();
     }

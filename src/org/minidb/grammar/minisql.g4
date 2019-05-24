@@ -1,21 +1,19 @@
 grammar minisql;
 
-parse
- : (sql_stmt ';'?)* EOF
- ;
-
 sql_stmt :
-           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')'
-         | K_CREATE K_DATABASE IDENTIFIER
-         | insert_stmt
-         | K_DELETE K_FROM table_name ( K_WHERE expr )?
-         | K_DROP K_TABLE table_name
-         | K_DROP K_DATABASE IDENTIFIER
-         | K_UPDATE table_name K_SET column_name '=' expr ( ',' column_name '=' expr )* ( K_WHERE expr )?
-         | select_stmt
-         | K_USE K_DATABASE IDENTIFIER
-         | K_SHOW K_DATABASES
-         | K_SHOW K_DATABASE IDENTIFIER
+           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' # create_table
+         | insert_stmt # insert_table
+         | K_DELETE K_FROM table_name ( K_WHERE expr )? # delete_table
+         | K_DROP K_TABLE table_name # drop_table
+         | K_UPDATE table_name K_SET column_name '=' expr ( ',' column_name '=' expr )* ( K_WHERE expr )? # update_table
+         | select_stmt # select_table
+         | K_SHOW K_TABLE IDENTIFIER # show_table
+         | K_CREATE K_DATABASE IDENTIFIER # create_db
+         | K_DROP K_DATABASE IDENTIFIER # drop_db
+         | K_USE K_DATABASE IDENTIFIER # use_db
+         | K_SHOW K_DATABASES # show_dbs
+         | K_SHOW K_DATABASE IDENTIFIER # show_db
+         | K_EXIT # exit
  ;
 
 insert_stmt
@@ -168,6 +166,7 @@ K_DOUBLE: D O U B L E;
 K_VARCHAR: V A R C H A R;
 K_USE: U S E;
 K_SHOW: S H O W;
+K_EXIT: E X I T;
 
 IDENTIFIER
  : [a-zA-Z_] [a-zA-Z_0-9]*

@@ -38,8 +38,5 @@ public class TestDatabase {
         database.close();
 
         database.resume();
-        relation = database.getRelation("what");
-        relation.insert(new ArrayList<Object>(Arrays.asList(18, 0.0, "you")));
-
     }
 }

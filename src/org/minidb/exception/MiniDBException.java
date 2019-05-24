@@ -1,6 +1,6 @@
 package org.minidb.exception;
 
-public class MiniDBException extends Exception {
+public class MiniDBException extends RuntimeException {
     public MiniDBException(String m)
     {super(m);}
     public static String StringLengthOverflow = "String Length Exceeds the limits! The limit is %d (bytes) " +
