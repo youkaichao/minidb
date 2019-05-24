@@ -105,6 +105,7 @@ public class Client {
                     socket.close();
                     socket = null;
                 }
+                System.out.println();
             } catch (Exception e) {
                 socket.close();
                 socket = null;

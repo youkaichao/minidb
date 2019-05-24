@@ -1,8 +1,8 @@
 package org.minidb.server;
 
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.atn.ATNConfigSet;
+import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.stream.Collectors;
 
 public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements Runnable {
@@ -52,11 +53,20 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             try{
                 String line = (String)ois.readObject();
                 minisqlLexer lexer = new minisqlLexer(CharStreams.fromString(line));
+                AccumulateErrorListener listener = new AccumulateErrorListener();
+                lexer.removeErrorListeners();
+                lexer.addErrorListener(listener);
                 minisqlParser parser = new minisqlParser(new CommonTokenStream(lexer));
+                parser.removeErrorListeners();
+                parser.addErrorListener(listener);
                 ParseTree tree = parser.sql_stmt();
-                ResultTable result = visit(tree);
-                send(result);
-
+                if(listener.hasError())
+                {
+                    send(ResultTable.getSimpleMessageTable(listener.getAllMessage()));
+                }else{
+                    ResultTable result = visit(tree);
+                    send(result);
+                }
                 if(closed)
                 {
                     socket.close();
