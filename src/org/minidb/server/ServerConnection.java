@@ -227,19 +227,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
 
     @Override
-    public ResultTable visitInsert_table(minisqlParser.Insert_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
     public ResultTable visitUpdate_table(minisqlParser.Update_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitSelect_table(minisqlParser.Select_tableContext ctx) {
         // TODO
         return ResultTable.getSimpleMessageTable("Unsupported");
     }
@@ -251,13 +239,13 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     }
 
     @Override
-    public ResultTable visitSelect_stmt(minisqlParser.Select_stmtContext ctx) {
+    public ResultTable visitRow(minisqlParser.RowContext ctx) {
         // TODO
         return ResultTable.getSimpleMessageTable("Unsupported");
     }
 
     @Override
-    public ResultTable visitSelect_core(minisqlParser.Select_coreContext ctx) {
+    public ResultTable visitSelect_stmt(minisqlParser.Select_stmtContext ctx) {
         // TODO
         return ResultTable.getSimpleMessageTable("Unsupported");
     }
@@ -312,12 +300,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     @Override
     public ResultTable visitJoin_constraint(minisqlParser.Join_constraintContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitCompound_operator(minisqlParser.Compound_operatorContext ctx) {
         // TODO
         return ResultTable.getSimpleMessageTable("Unsupported");
     }
