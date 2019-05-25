@@ -689,11 +689,11 @@ public class minisqlParser extends Parser {
 	}
 
 	public static class RowContext extends ParserRuleContext {
-		public List<Value_exprContext> value_expr() {
-			return getRuleContexts(Value_exprContext.class);
+		public List<Literal_valueContext> literal_value() {
+			return getRuleContexts(Literal_valueContext.class);
 		}
-		public Value_exprContext value_expr(int i) {
-			return getRuleContext(Value_exprContext.class,i);
+		public Literal_valueContext literal_value(int i) {
+			return getRuleContext(Literal_valueContext.class,i);
 		}
 		public RowContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
@@ -716,7 +716,7 @@ public class minisqlParser extends Parser {
 			setState(142);
 			match(T__0);
 			setState(143);
-			value_expr();
+			literal_value();
 			setState(148);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
@@ -726,7 +726,7 @@ public class minisqlParser extends Parser {
 				setState(144);
 				match(T__1);
 				setState(145);
-				value_expr();
+				literal_value();
 				}
 				}
 				setState(150);
@@ -1642,8 +1642,8 @@ public class minisqlParser extends Parser {
 		"\36\3\2\2\2\u008e\63\3\2\2\2\u008eL\3\2\2\2\u008eS\3\2\2\2\u008eV\3\2"+
 		"\2\2\u008ej\3\2\2\2\u008e|\3\2\2\2\u008e\177\3\2\2\2\u008e\u0082\3\2\2"+
 		"\2\u008e\u0085\3\2\2\2\u008e\u0088\3\2\2\2\u008e\u008a\3\2\2\2\u008e\u008d"+
-		"\3\2\2\2\u008f\3\3\2\2\2\u0090\u0091\7\3\2\2\u0091\u0096\5\16\b\2\u0092"+
-		"\u0093\7\4\2\2\u0093\u0095\5\16\b\2\u0094\u0092\3\2\2\2\u0095\u0098\3"+
+		"\3\2\2\2\u008f\3\3\2\2\2\u0090\u0091\7\3\2\2\u0091\u0096\5\30\r\2\u0092"+
+		"\u0093\7\4\2\2\u0093\u0095\5\30\r\2\u0094\u0092\3\2\2\2\u0095\u0098\3"+
 		"\2\2\2\u0096\u0094\3\2\2\2\u0096\u0097\3\2\2\2\u0097\u0099\3\2\2\2\u0098"+
 		"\u0096\3\2\2\2\u0099\u009a\7\5\2\2\u009a\5\3\2\2\2\u009b\u009c\5\34\17"+
 		"\2\u009c\u00a2\5\b\5\2\u009d\u009e\7\'\2\2\u009e\u00a3\7\37\2\2\u009f"+
