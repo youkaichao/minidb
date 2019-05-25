@@ -12,17 +12,17 @@ import org.minidb.database.Database;
 import org.minidb.exception.MiniDBException;
 import org.minidb.grammar.*;
 import org.minidb.utils.Misc;
+import org.minidb.relation.*;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.stream.Collectors;
 
 public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements Runnable {
@@ -102,8 +102,48 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     @Override
     public ResultTable visitShow_table(minisqlParser.Show_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
+        try {
+            String table_name = ctx.IDENTIFIER().getText();
+            Path dir = Paths.get(currentDB.getDirectory(), table_name);
+            if(!Files.isDirectory(dir)){
+                return  ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
+            }
+            else {
+                Relation rel = currentDB.getRelation(table_name);
+                StringBuilder output_ctx = new StringBuilder();
+                int column_number = rel.meta.ncols;
+                String table_columns = "column nummber:" + column_number + "\n";
+                output_ctx.append(table_columns);
+                for(int i = 0;i < column_number;i++){
+                    output_ctx.append((i+1) + ". ");
+                    String column_name = "column name:" + rel.meta.colnames.get(i) + ", ";
+                    output_ctx.append(column_name);
+                    String column_type = "column type:" + rel.meta.coltypes.get(i).toString() + ", ";
+                    output_ctx.append(column_type);
+                    String column_nullable = "";
+                    if(rel.meta.nullableColIds.contains(i)){
+                        column_nullable = "nullable";
+                    }
+                    else{
+                        column_nullable = "not nullable";
+                    }
+                    output_ctx.append(column_nullable + ";\n");
+                }
+                int size = rel.meta.superKeys.size();
+                for(int i = 0;i <size;i++){
+                    output_ctx.append("unique columns " + (i+1) + ": ");
+                    ArrayList<Integer> superkey = rel.meta.superKeys.get(i);
+                    int sizesuper = superkey.size();
+                    for(int j = 0;j < sizesuper;j++){
+                        output_ctx.append(rel.meta.colnames.get(superkey.get(j)) + " ");
+                    }
+                    output_ctx.append(";\n");
+                }
+                return ResultTable.getSimpleMessageTable(output_ctx.toString());
+            }
+        }catch (Exception e){
+            throw new ParseCancellationException(e);
+        }
     }
 
     @Override

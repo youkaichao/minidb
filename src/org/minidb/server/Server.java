@@ -17,6 +17,9 @@ public class Server {
     public static void main(String[] arg) throws IOException, MiniDBException {
         int port = 2134;
         Path dataDir = Paths.get("./data");
+        if(Files.notExists(dataDir)){
+            Files.createDirectory(dataDir);
+        }
         String dbname = "default";
         for (int i = 0; i < arg.length; i++) {
             String currentArg = arg[i];
