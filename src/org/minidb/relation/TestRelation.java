@@ -53,4 +53,10 @@ public class TestRelation {
         // ;
         System.out.println(bbuffer.position());
     }
+
+    @Test
+    public void test2()
+    {
+        assert 1 == 2 : "wrong!";
+    }
 }
