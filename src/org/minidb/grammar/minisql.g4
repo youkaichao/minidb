@@ -16,7 +16,7 @@ sql_stmt :
          | K_EXIT # exit
  ;
 
-row : '(' value_expr ( ',' value_expr )* ')';
+row : '(' literal_value ( ',' literal_value )* ')';
 
 column_def
  : column_name type_name ( K_PRIMARY K_KEY | K_NOT K_NULL | K_UNIQUE )?

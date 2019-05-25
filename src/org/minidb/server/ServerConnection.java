@@ -1,5 +1,6 @@
 package org.minidb.server;
 
+import com.sun.deploy.util.StringUtils;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -8,21 +9,21 @@ import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.minidb.database.Database;
 import org.minidb.exception.MiniDBException;
 import org.minidb.grammar.*;
+import org.minidb.relation.Relation;
 import org.minidb.utils.Misc;
 import org.minidb.relation.*;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements Runnable {
@@ -267,8 +268,105 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     @Override
     public ResultTable visitInsert_table(minisqlParser.Insert_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
+        try {
+            String table_name = ctx.table_name().IDENTIFIER().getText();
+            Relation table = currentDB.getRelation(table_name);
+            if(table == null) return ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
+            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText()).collect(Collectors.toCollection(HashSet::new)));
+            boolean isInOrder = colNames.size() == 0;
+            if(colNames.size() != 0)
+            {// insert with custon col name order
+                if(colNames.size() != ctx.column_name().size())
+                {
+                    return ResultTable.getSimpleMessageTable("Duplicate column names for insertion!");
+                }
+                Set<String> missingNames = new HashSet<>(table.meta.colnames);
+                missingNames.removeAll(colNames);
+                if(missingNames.size() != 0)
+                {
+                    return ResultTable.getSimpleMessageTable(String.format("Missing column names (%s) for insertion!", missingNames.toString()));
+                }
+            }
+            // colnames for insertion is legal
+            // the ith element in values should be put in permute[i]
+            ArrayList<Integer> permute = new ArrayList<>();
+            if(!isInOrder)
+            {
+                for(minisqlParser.Column_nameContext col : ctx.column_name())
+                {
+                    permute.add(table.meta.colnames.indexOf(col.IDENTIFIER().getText()));
+                }
+            }
+            for(minisqlParser.RowContext row : ctx.row())
+            {
+                if(row.literal_value().size() != table.meta.ncols)
+                {
+                    return ResultTable.getSimpleMessageTable(String.format("The row (%s) size mismatches!", row.getText()));
+                }
+            }
+            ArrayList<ArrayList<minisqlParser.Literal_valueContext>> values = new ArrayList<>();
+            for(minisqlParser.RowContext row : ctx.row())
+            {
+                values.add(new ArrayList<minisqlParser.Literal_valueContext>(row.literal_value()));
+            }
+            // permute
+            if(!isInOrder)
+            {
+                for(int i = 0; i < values.size(); ++i)
+                {
+                    ArrayList<minisqlParser.Literal_valueContext> row = values.get(i);
+                    minisqlParser.Literal_valueContext[] tmp = new minisqlParser.Literal_valueContext[row.size()];
+                    for(int j = 0; j < row.size(); ++j)
+                    {
+                        tmp[permute.get(j)] = row.get(j);
+                    }
+                    values.set(i, new ArrayList<minisqlParser.Literal_valueContext>(Arrays.asList(tmp)));
+                }
+            }
+            // parse value
+            ArrayList<ArrayList<Object>> literal_values = new ArrayList<>();
+            for(ArrayList<minisqlParser.Literal_valueContext> row : values)
+            {
+                Object[] literal_row = new Object[row.size()];
+                for (int i = 0; i < row.size(); ++i)
+                {
+                    minisqlParser.Literal_valueContext element = row.get(i);
+                    if(element.K_NULL() != null)
+                    {
+                        literal_row[i] = null;
+                        continue;
+                    }
+                    Type colType = table.meta.coltypes.get(i);
+                    if(colType == Integer.class)
+                    {
+                        literal_row[i] = Integer.valueOf(row.get(i).getText());
+                    }else if(colType == Long.class)
+                    {
+                        literal_row[i] = Long.valueOf(row.get(i).getText());
+                    }else if(colType == Float.class)
+                    {
+                        literal_row[i] = Float.valueOf(row.get(i).getText());
+                    }else if(colType == Double.class)
+                    {
+                        literal_row[i] = Double.valueOf(row.get(i).getText());
+                    }else if(colType == String.class)
+                    {
+                        String text = row.get(i).getText();
+                        text = text.substring(1, text.length() - 1);
+                        text = StringEscapeUtils.unescapeJava(text);
+                        literal_row[i] = text;
+                    }
+                }
+                literal_values.add(new ArrayList<Object>(Arrays.asList(literal_row)));
+            }
+            for(ArrayList<Object> row : literal_values)
+            {
+                table.insert(row);
+            }
+            return ResultTable.getSimpleMessageTable(String.format("%d rows inserted!", literal_values.size()));
+        }catch (Exception e){
+            throw new ParseCancellationException(e);
+        }
     }
 
     @Override
