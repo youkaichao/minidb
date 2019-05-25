@@ -37,6 +37,7 @@ public class Client {
             }
         }
         Socket socket = new Socket(host, port);
+        System.out.println("Welcome to minidb!");
         ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
         Scanner scanner = new Scanner(System.in);
@@ -60,7 +61,7 @@ public class Client {
                         Scanner fscanner = new Scanner(new FileInputStream(new File(filename)));
                         while (fscanner.hasNextLine())
                         {
-                            commands.push(fscanner.nextLine());
+                            commands.addLast(fscanner.nextLine());
                             import_remain_line_count++;
                         }
                     }else {
@@ -72,7 +73,7 @@ public class Client {
                         continue;
                     }
                 }
-                command = commands.pop();
+                command = commands.pollFirst();
                 if(command.toLowerCase().equals("exit"))
                 {
                     closed = true;
