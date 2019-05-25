@@ -105,43 +105,55 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     public ResultTable visitShow_table(minisqlParser.Show_tableContext ctx) {
         try {
             String table_name = ctx.IDENTIFIER().getText();
-            Path dir = Paths.get(currentDB.getDirectory(), table_name);
-            if(!Files.isDirectory(dir)){
-                return  ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
-            }
-            else {
-                Relation rel = currentDB.getRelation(table_name);
-                StringBuilder output_ctx = new StringBuilder();
-                int column_number = rel.meta.ncols;
-                String table_columns = "column nummber:" + column_number + "\n";
-                output_ctx.append(table_columns);
-                for(int i = 0;i < column_number;i++){
-                    output_ctx.append((i+1) + ". ");
-                    String column_name = "column name:" + rel.meta.colnames.get(i) + ", ";
-                    output_ctx.append(column_name);
-                    String column_type = "column type:" + rel.meta.coltypes.get(i).toString() + ", ";
-                    output_ctx.append(column_type);
-                    String column_nullable = "";
-                    if(rel.meta.nullableColIds.contains(i)){
-                        column_nullable = "nullable";
-                    }
-                    else{
-                        column_nullable = "not nullable";
-                    }
-                    output_ctx.append(column_nullable + ";\n");
+            Relation rel = currentDB.getRelation(table_name);
+            if(rel == null) return  ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
+            StringBuilder output_ctx = new StringBuilder();
+            int column_number = rel.meta.ncols;
+            String table_columns = "column nummber:" + column_number + "\n";
+            output_ctx.append(table_columns);
+            for(int i = 0;i < column_number;i++){
+                output_ctx.append((i+1) + ". ");
+                String column_name = "column name:" + rel.meta.colnames.get(i) + ", ";
+                output_ctx.append(column_name);
+                String typeName = ""; Type type = rel.meta.coltypes.get(i);
+                if(type == Integer.class)
+                {
+                    typeName = "INT";
+                }else if(type == Long.class)
+                {
+                    typeName = "LONG";
+                }else if(type == Float.class)
+                {
+                    typeName = "FLOAT";
+                }else if(type == Double.class)
+                {
+                    typeName = "DOUBLE";
+                }else if(type == String.class)
+                {
+                    typeName = String.format("STRING(%d)", rel.meta.colsizes.get(i));
                 }
-                int size = rel.meta.superKeys.size();
-                for(int i = 0;i <size;i++){
-                    output_ctx.append("unique columns " + (i+1) + ": ");
-                    ArrayList<Integer> superkey = rel.meta.superKeys.get(i);
-                    int sizesuper = superkey.size();
-                    for(int j = 0;j < sizesuper;j++){
-                        output_ctx.append(rel.meta.colnames.get(superkey.get(j)) + " ");
-                    }
-                    output_ctx.append(";\n");
+                String column_type = "column type:" + typeName + ", ";
+                output_ctx.append(column_type);
+                String column_nullable = "";
+                if(rel.meta.nullableColIds.contains(i)){
+                    column_nullable = "nullable";
                 }
-                return ResultTable.getSimpleMessageTable(output_ctx.toString());
+                else{
+                    column_nullable = "not nullable";
+                }
+                output_ctx.append(column_nullable + ";\n");
             }
+            int size = rel.meta.superKeys.size();
+            for(int i = 0;i <size;i++){
+                output_ctx.append("unique columns " + (i+1) + ": ");
+                ArrayList<Integer> superkey = rel.meta.superKeys.get(i);
+                int sizesuper = superkey.size();
+                for(int j = 0;j < sizesuper;j++){
+                    output_ctx.append(rel.meta.colnames.get(superkey.get(j)) + " ");
+                }
+                output_ctx.append(";\n");
+            }
+            return ResultTable.getSimpleMessageTable(output_ctx.toString());
         }catch (Exception e){
             throw new ParseCancellationException(e);
         }
@@ -352,6 +364,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     }else if(colType == String.class)
                     {
                         String text = row.get(i).getText();
+                        assert text.length() >= 2 && text.startsWith("'") && text.endsWith("'") : String.format("Illegal string literal %s!", text);
                         text = text.substring(1, text.length() - 1);
                         text = StringEscapeUtils.unescapeJava(text);
                         literal_row[i] = text;
