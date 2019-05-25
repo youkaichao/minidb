@@ -332,14 +332,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     public ResultTable visitDrop_table(minisqlParser.Drop_tableContext ctx) {
         try {
             String table_name = ctx.table_name().IDENTIFIER().getText();
-            Path dir = Paths.get(currentDB.getDirectory(), table_name);
-            if(!Files.isDirectory(dir))
-            {
-                return ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
-            }else{
-                Misc.rmDir(dir);
-                return ResultTable.getSimpleMessageTable(String.format("Table (%s) dropped.", table_name));
-            }
+            currentDB.dropRelation(table_name);
+            return ResultTable.getSimpleMessageTable(String.format("Table (%s) dropped.", table_name));
         }catch (Exception e){
             throw new ParseCancellationException(e);
         }
@@ -558,85 +552,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     }
 
     @Override
-    public ResultTable visitLogical_expr(minisqlParser.Logical_exprContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitValue_expr(minisqlParser.Value_exprContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
     public ResultTable visitUpdate_table(minisqlParser.Update_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitRow(minisqlParser.RowContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitColumn_def(minisqlParser.Column_defContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitType_name(minisqlParser.Type_nameContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitTable_constraint(minisqlParser.Table_constraintContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitResult_column(minisqlParser.Result_columnContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitJoin_clause(minisqlParser.Join_clauseContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitJoin_operator(minisqlParser.Join_operatorContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitJoin_constraint(minisqlParser.Join_constraintContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitLiteral_value(minisqlParser.Literal_valueContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitTable_name(minisqlParser.Table_nameContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
-    }
-
-    @Override
-    public ResultTable visitColumn_name(minisqlParser.Column_nameContext ctx) {
         // TODO
         return ResultTable.getSimpleMessageTable("Unsupported");
     }

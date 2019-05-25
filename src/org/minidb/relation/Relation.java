@@ -265,7 +265,6 @@ public class Relation {
             ArrayList<Object> thisRow = tree.conf.colIDs.stream().map(x -> row.get(x)).collect(Collectors.toCollection(ArrayList::new));
             tree.deletePair(thisRow, rowID);
         }
-
         for(BPlusTree tree : nullTrees)
         {
             tree.deletePair(new ArrayList<Object>(Arrays.asList(rowID)), -1L);

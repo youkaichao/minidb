@@ -1,19 +1,19 @@
 grammar minisql;
 
 sql_stmt :
-           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' # create_table
-         | K_INSERT K_INTO table_name ( '(' column_name ( ',' column_name )* ')' )? ( K_VALUES row ( ',' row )* ) # insert_table
-         | K_DELETE K_FROM table_name ( K_WHERE logical_expr )? # delete_table
-         | K_DROP K_TABLE table_name # drop_table
-         | K_UPDATE table_name K_SET column_name '=' literal_value ( ',' column_name '=' literal_value )* ( K_WHERE logical_expr )? # update_table
-         | K_SELECT result_column ( ',' result_column )* K_FROM table_name join_clause? ( K_WHERE logical_expr )? # select_table
-         | K_SHOW K_TABLE IDENTIFIER # show_table
-         | K_CREATE K_DATABASE IDENTIFIER # create_db
-         | K_DROP K_DATABASE IDENTIFIER # drop_db
-         | K_USE K_DATABASE IDENTIFIER # use_db
-         | K_SHOW K_DATABASES # show_dbs
-         | K_SHOW K_DATABASE IDENTIFIER # show_db
-         | K_EXIT # exit
+           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' EOF # create_table
+         | K_INSERT K_INTO table_name ( '(' column_name ( ',' column_name )* ')' )? ( K_VALUES row ( ',' row )* ) EOF # insert_table
+         | K_DELETE K_FROM table_name ( K_WHERE logical_expr )? EOF # delete_table
+         | K_DROP K_TABLE table_name EOF # drop_table
+         | K_UPDATE table_name K_SET column_name '=' literal_value ( ',' column_name '=' literal_value )* ( K_WHERE logical_expr )? EOF # update_table
+         | K_SELECT result_column ( ',' result_column )* K_FROM table_name join_clause? ( K_WHERE logical_expr )? EOF # select_table
+         | K_SHOW K_TABLE IDENTIFIER EOF # show_table
+         | K_CREATE K_DATABASE IDENTIFIER EOF # create_db
+         | K_DROP K_DATABASE IDENTIFIER EOF # drop_db
+         | K_USE K_DATABASE IDENTIFIER EOF # use_db
+         | K_SHOW K_DATABASES EOF # show_dbs
+         | K_SHOW K_DATABASE IDENTIFIER EOF # show_db
+         | K_EXIT EOF # exit
  ;
 
 row : '(' literal_value ( ',' literal_value )* ')';
@@ -31,7 +31,7 @@ table_constraint
  ;
 
 logical_expr
- : value_expr ( '<' | '<=' | '>' | '>=' | '=' | '<>' ) value_expr
+ : value_expr ( K_LT | K_LE | K_GT | K_GE | K_EQ | K_NEQ ) value_expr
  | logical_expr K_AND logical_expr
  | logical_expr K_OR logical_expr
  ;
@@ -117,6 +117,12 @@ K_VARCHAR: V A R C H A R;
 K_USE: U S E;
 K_SHOW: S H O W;
 K_EXIT: E X I T;
+K_LT: '<';
+K_LE: '<=';
+K_GT: '>';
+K_GE: '>=';
+K_EQ: '=';
+K_NEQ: '<>';
 
 IDENTIFIER
  : [a-zA-Z_] [a-zA-Z_0-9]*
