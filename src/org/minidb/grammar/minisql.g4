@@ -2,11 +2,11 @@ grammar minisql;
 
 sql_stmt :
            K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' # create_table
-         | insert_stmt # insert_table
-         | K_DELETE K_FROM table_name ( K_WHERE expr )? # delete_table
+         | K_INSERT K_INTO table_name ( '(' column_name ( ',' column_name )* ')' )? ( K_VALUES row ( ',' row )* ) # insert_table
+         | K_DELETE K_FROM table_name ( K_WHERE logical_expr )? # delete_table
          | K_DROP K_TABLE table_name # drop_table
-         | K_UPDATE table_name K_SET column_name '=' expr ( ',' column_name '=' expr )* ( K_WHERE expr )? # update_table
-         | select_stmt # select_table
+         | K_UPDATE table_name K_SET column_name '=' literal_value ( ',' column_name '=' literal_value )* ( K_WHERE logical_expr )? # update_table
+         | K_SELECT result_column ( ',' result_column )* K_FROM table_name join_clause? ( K_WHERE logical_expr )? # select_table
          | K_SHOW K_TABLE IDENTIFIER # show_table
          | K_CREATE K_DATABASE IDENTIFIER # create_db
          | K_DROP K_DATABASE IDENTIFIER # drop_db
@@ -16,19 +16,7 @@ sql_stmt :
          | K_EXIT # exit
  ;
 
-insert_stmt
- : K_INSERT K_INTO
-   table_name ( '(' column_name ( ',' column_name )* ')' )?
-   ( K_VALUES row ( ',' row )* )
- ;
-
-row : '(' expr ( ',' expr )* ')';
-
-select_stmt
- : K_SELECT result_column ( ',' result_column )*
-   K_FROM table join_clause?
-   ( K_WHERE expr )?
- ;
+row : '(' value_expr ( ',' value_expr )* ')';
 
 column_def
  : column_name type_name ( K_PRIMARY K_KEY | K_NOT K_NULL | K_UNIQUE )?
@@ -42,30 +30,15 @@ table_constraint
  : ( K_PRIMARY K_KEY | K_UNIQUE ) '(' column_name ( ',' column_name )* ')'
  ;
 
-/*
-    SQLite understands the following binary operators, in order from highest to
-    lowest precedence:
+logical_expr
+ : value_expr ( '<' | '<=' | '>' | '>=' | '=' | '<>' ) value_expr
+ | logical_expr K_AND logical_expr
+ | logical_expr K_OR logical_expr
+ ;
 
-    ||
-    *    /    %
-    +    -
-    <<   >>   &    |
-    <    <=   >    >=
-    =    ==   !=   <>   IS   IS NOT   IN   LIKE
-    AND
-    OR
-*/
-expr
+value_expr
  : literal_value
  | ( table_name '.' )? column_name
- | unary_operator expr
- | expr ( '*' | '/' | '%' ) expr
- | expr ( '+' | '-' ) expr
- | expr ( '<' | '<=' | '>' | '>=' ) expr
- | expr ( '=' | '==' | '!=' | '<>' ) expr
- | expr K_AND expr
- | expr K_OR expr
- | expr ( K_ISNULL | K_NOTNULL | K_NOT K_NULL )
  ;
 
 result_column
@@ -73,12 +46,8 @@ result_column
  | table_name '.' column_name
  ;
 
-table
- : table_name ( K_AS IDENTIFIER )?
- ;
-
 join_clause
- : join_operator table join_constraint
+ : join_operator table_name join_constraint
  ;
 
 join_operator
@@ -87,7 +56,7 @@ join_operator
  ;
 
 join_constraint
- : ( K_ON expr
+ : ( K_ON logical_expr
    | K_USING '(' column_name ( ',' column_name )* ')' )?
  ;
 
@@ -95,12 +64,6 @@ literal_value
  : ( '+' | '-' )? NUMERIC_LITERAL
  | STRING_LITERAL
  | K_NULL
- ;
-
-unary_operator
- : '-'
- | '+'
- | K_NOT
  ;
 
 table_name 
@@ -112,7 +75,6 @@ column_name
  ;
 
 K_AND : A N D;
-K_AS : A S;
 K_CREATE : C R E A T E;
 K_DATABASE : D A T A B A S E;
 K_DATABASES : D A T A B A S E S;

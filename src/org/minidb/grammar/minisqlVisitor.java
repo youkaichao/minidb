@@ -102,23 +102,11 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExit(minisqlParser.ExitContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link minisqlParser#insert_stmt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitInsert_stmt(minisqlParser.Insert_stmtContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link minisqlParser#row}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitRow(minisqlParser.RowContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link minisqlParser#select_stmt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSelect_stmt(minisqlParser.Select_stmtContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#column_def}.
 	 * @param ctx the parse tree
@@ -138,23 +126,23 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTable_constraint(minisqlParser.Table_constraintContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link minisqlParser#expr}.
+	 * Visit a parse tree produced by {@link minisqlParser#logical_expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExpr(minisqlParser.ExprContext ctx);
+	T visitLogical_expr(minisqlParser.Logical_exprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link minisqlParser#value_expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitValue_expr(minisqlParser.Value_exprContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#result_column}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitResult_column(minisqlParser.Result_columnContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link minisqlParser#table}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitTable(minisqlParser.TableContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#join_clause}.
 	 * @param ctx the parse tree
@@ -179,12 +167,6 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLiteral_value(minisqlParser.Literal_valueContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link minisqlParser#unary_operator}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitUnary_operator(minisqlParser.Unary_operatorContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#table_name}.
 	 * @param ctx the parse tree
