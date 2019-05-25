@@ -19,16 +19,14 @@ sql_stmt :
 insert_stmt
  : K_INSERT K_INTO
    table_name ( '(' column_name ( ',' column_name )* ')' )?
-   ( K_VALUES '(' expr ( ',' expr )* ')' ( ',' '(' expr ( ',' expr )* ')' )* )
+   ( K_VALUES row ( ',' row )* )
  ;
+
+row : '(' expr ( ',' expr )* ')';
 
 select_stmt
- : select_core ( compound_operator select_core )*
- ;
-
-select_core
- : K_SELECT K_DISTINCT? result_column ( ',' result_column )*
-   ( K_FROM ( table ( ',' table )* | join_clause ) )?
+ : K_SELECT result_column ( ',' result_column )*
+   K_FROM table join_clause?
    ( K_WHERE expr )?
  ;
 
@@ -71,9 +69,8 @@ expr
  ;
 
 result_column
- : '*'
- | table_name '.' '*'
- | expr ( K_AS IDENTIFIER )?
+ : column_name
+ | table_name '.' column_name
  ;
 
 table
@@ -81,7 +78,7 @@ table
  ;
 
 join_clause
- : table ( join_operator table join_constraint )*
+ : join_operator table join_constraint
  ;
 
 join_operator
@@ -92,12 +89,6 @@ join_operator
 join_constraint
  : ( K_ON expr
    | K_USING '(' column_name ( ',' column_name )* ')' )?
- ;
-
-compound_operator
- : K_UNION
- | K_INTERSECT
- | K_EXCEPT
  ;
 
 literal_value
@@ -128,13 +119,11 @@ K_DATABASES : D A T A B A S E S;
 K_DELETE : D E L E T E;
 K_DISTINCT : D I S T I N C T;
 K_DROP : D R O P;
-K_EXCEPT : E X C E P T;
 K_EXISTS : E X I S T S;
 K_FROM : F R O M;
 K_IF : I F;
 K_IN : I N;
 K_INSERT : I N S E R T;
-K_INTERSECT : I N T E R S E C T;
 K_INTO : I N T O;
 K_IS : I S;
 K_ISNULL : I S N U L L;
@@ -152,7 +141,6 @@ K_RECURSIVE : R E C U R S I V E;
 K_SELECT : S E L E C T;
 K_SET : S E T;
 K_TABLE : T A B L E;
-K_UNION : U N I O N;
 K_UNIQUE : U N I Q U E;
 K_UPDATE : U P D A T E;
 K_USING : U S I N G;

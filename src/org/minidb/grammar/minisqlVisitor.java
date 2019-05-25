@@ -108,17 +108,17 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitInsert_stmt(minisqlParser.Insert_stmtContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link minisqlParser#row}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRow(minisqlParser.RowContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link minisqlParser#select_stmt}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitSelect_stmt(minisqlParser.Select_stmtContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link minisqlParser#select_core}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSelect_core(minisqlParser.Select_coreContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#column_def}.
 	 * @param ctx the parse tree
@@ -173,12 +173,6 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitJoin_constraint(minisqlParser.Join_constraintContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link minisqlParser#compound_operator}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitCompound_operator(minisqlParser.Compound_operatorContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link minisqlParser#literal_value}.
 	 * @param ctx the parse tree
