@@ -41,6 +41,9 @@ public class Client {
         ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
         Scanner scanner = new Scanner(System.in);
         LinkedList<String> commands = new LinkedList<>();
+        boolean import_mode = false;
+        Integer import_remain_line_count = 0;
+        long import_start_time = 0;
         boolean closed = false;
         while (socket != null) {
             try {
@@ -50,11 +53,15 @@ public class Client {
                     command = scanner.nextLine();
                     if(command.startsWith("import"))
                     {
+                        import_mode = true;
+                        import_start_time = System.currentTimeMillis();
+                        System.out.println("Start import.");
                         String filename = command.substring(6).replaceAll("\\s+", "");
                         Scanner fscanner = new Scanner(new FileInputStream(new File(filename)));
                         while (fscanner.hasNextLine())
                         {
                             commands.push(fscanner.nextLine());
+                            import_remain_line_count++;
                         }
                     }else {
                         commands.push(command);
@@ -98,6 +105,16 @@ public class Client {
                             System.out.print("\t");
                         }
                         System.out.println();
+                    }
+                }
+                if(import_mode)
+                {
+                    import_remain_line_count--;
+                    if(import_remain_line_count == 0)
+                    {
+                        System.out.println();
+                        System.out.println("Import completed, spent " + Long.toString(System.currentTimeMillis() - import_start_time) + "ms");
+                        import_mode = false;
                     }
                 }
                 if(closed)
