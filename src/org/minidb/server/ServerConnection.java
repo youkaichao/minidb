@@ -1,8 +1,11 @@
 package org.minidb.server;
 
+import com.sun.org.apache.xpath.internal.FoundIndex;
 import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.minidb.bptree.BPlusTree;
 import org.minidb.bptree.MainDataFile;
@@ -12,14 +15,18 @@ import org.minidb.grammar.*;
 import org.minidb.relation.Relation;
 import org.minidb.relation.RelationMeta;
 import org.minidb.utils.Misc;
+import sun.management.counter.Counter;
 
 import java.io.*;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements Runnable {
@@ -291,114 +298,295 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         return null;
     }
 
-    private class Expression
+    private static class TableIDAndColID
     {
-        boolean isLeaf;
-        boolean isAnd;
-        boolean isOr;
-        Expression left, right;
-        int colID;
-        Type colType;
-        Object comparedValue;
-        boolean lt, le, gt, ge, eq, neq;
-        boolean isConstant, constant;
-        HashSet<Integer> queriedCols;
+        public ArrayList<Relation> tables;
+        HashMap<String, Integer> counter;
+        ArrayList<String> tableNames;
+        HashMap<String, Pair<Integer, Integer>> uniqueColNameToID;
+        HashSet<String> uniqueNames;
 
-        public Expression(minisqlParser.Logical_exprContext ctx, Relation table) {
+        public TableIDAndColID(ArrayList<Relation> tables) {
+            this.tables = tables;
+            // only colnames that appear only once can be directly referenced
+            counter = new HashMap<>();
+            tableNames = tables
+                    .stream()
+                    .map(x -> new File(x.directory).getName())
+                    .collect(Collectors.toCollection(ArrayList::new));
+            // map unique names to (tableID, colID)
+            uniqueColNameToID = new HashMap<>();
+            for (int i = 0; i < tables.size(); i++) {
+                Relation table = tables.get(i);
+                for (int j = 0; j < table.meta.colnames.size(); j++) {
+                    String colName = table.meta.colnames.get(j);
+                    counter.put(colName, counter.getOrDefault(colName, 0) + 1);
+                    uniqueColNameToID.put(colName, new Pair<>(i, j));
+                }
+            }
+            uniqueNames = counter
+                    .entrySet()
+                    .stream()
+                    .filter(x -> x.getValue() == 1)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toCollection(HashSet::new));
+            Set<String> names = new HashSet<>(uniqueColNameToID.keySet());
+            for(String name : names)
+            {
+                if(!uniqueNames.contains(name))
+                {
+                    uniqueColNameToID.remove(name);
+                }
+            }
+        }
+
+        public Pair<Integer, Integer> getTableIDAndColID(String tableName, String colName)
+        {
+            if(tableName == null)
+            {
+                assert uniqueNames.contains(colName);
+                return uniqueColNameToID.get(colName);
+            }
+            int tableID = tableNames.indexOf(tableName);
+            if(tableID == -1)
+                throw new ParseCancellationException(String.format("Table %s not found in this query.", tableName));
+            if(!counter.containsKey(colName))
+                throw new ParseCancellationException(String.format("Column %s not found in this query.", colName));
+            int tableColID = tables.get(tableID).meta.colnames.indexOf(colName);
+            return new Pair<>(tableID, tableColID);
+        }
+    }
+
+    private static class Expression
+    {
+        enum ExpressionType{
+            LEAF_EXPR,
+            AND_EXPR,
+            OR_EXPR,
+            CONST_VALUE
+        }
+        enum Opetator{
+            LT, LE, GT, GE, EQ, NEQ
+        }
+        ExpressionType expressionType;
+        Opetator op;
+        Expression left, right;
+        boolean hasLiteral;
+        Object literal;
+        int leftTableID, leftTableColID, rightTableID, rightTableColID;
+        Type leftColType, rightColType;
+        boolean constant;
+
+        public Expression(minisqlParser.Logical_exprContext ctx, ArrayList<Relation> tables) {
+            this(ctx, new TableIDAndColID(tables));
+        }
+
+        public Expression(minisqlParser.Logical_exprContext ctx, TableIDAndColID tableIDAndColID)
+        {
             if(ctx.value_expr() != null)
             {
-                isLeaf = true; isAnd = isOr = false; left = right = null;
+                // leaf expression, a = b ; a.a = b.b; literal values are adjusted to the right side
+                expressionType = ExpressionType.LEAF_EXPR;
                 minisqlParser.Value_exprContext first = ctx.value_expr(0), second = ctx.value_expr(1), tmp = null;
+                if(ctx.K_LT() != null) op = Opetator.LT;
+                if(ctx.K_LE() != null) op = Opetator.LE;
+                if(ctx.K_GT() != null) op = Opetator.GT;
+                if(ctx.K_GE() != null) op = Opetator.GE;
+                if(ctx.K_EQ() != null) op = Opetator.EQ;
+                if(ctx.K_NEQ() != null) op = Opetator.NEQ;
                 if(first.literal_value() != null && second.literal_value() != null)
                 {
-                    throw new ParseCancellationException("Not supported for comparison with two literal values!");
+                    throw new ParseCancellationException("Not allowed for comparison with two literal values!");
                 }
-                if(first.column_name() != null && second.column_name() != null)
-                {
-                    throw new ParseCancellationException("Not supported for comparison with two columns!");
-                }
-                if(first.table_name() != null || second.table_name() != null)
-                {
-                    throw new ParseCancellationException("Table name Not supported here!");
-                }
-                if(first.literal_value() != null && second.column_name() != null)
-                {
+                if(first.literal_value() != null && second.literal_value() == null)
+                {// switch 1=a to a=1
                     tmp = first; first = second; second = tmp;
+                    switch (op) {
+                        case LT:
+                            op = Opetator.GT;
+                            break;
+                        case LE:
+                            op = Opetator.GE;
+                            break;
+                        case GT:
+                            op = Opetator.LT;
+                            break;
+                        case GE:
+                            op = Opetator.LE;
+                            break;
+                        case EQ:
+                            break;
+                        case NEQ:
+                            break;
+                    }
                 }
-                // now it is in the type of `col = literal`
-                String colname = first.column_name().IDENTIFIER().getText();
-                colID = table.meta.colnames.indexOf(colname);
-                if(colID == -1)
+                Pair<Integer, Integer> tmpPair = tableIDAndColID.getTableIDAndColID(
+                        first.table_name() != null ? first.table_name().IDENTIFIER().getText() : null,
+                        first.column_name().IDENTIFIER().getText()
+                );
+                leftTableID = tmpPair.a;
+                leftTableColID = tmpPair.b;
+                leftColType = tableIDAndColID.tables.get(leftTableID).meta.coltypes.get(leftTableColID);
+
+                if(second.literal_value() != null)
                 {
-                    throw new ParseCancellationException(String.format("Column name (%s) not found!", colname));
+                    hasLiteral = true;
+                    literal = parseLiteral(second.literal_value(), leftColType);
+                    if(literal == null)
+                        throw new ParseCancellationException("Not supported for comparison with null!");
+                }else{
+                    tmpPair = tableIDAndColID.getTableIDAndColID(
+                            second.table_name() != null ? second.table_name().IDENTIFIER().getText() : null,
+                            second.column_name().IDENTIFIER().getText()
+                    );
+                    rightTableID = tmpPair.a;
+                    rightTableColID = tmpPair.b;
+                    rightColType = tableIDAndColID.tables.get(rightTableID).meta.coltypes.get(rightTableColID);
+                    if((leftColType == String.class && rightColType == String.class) || (leftColType != String.class && rightColType != String.class))
+                    {
+                    }else {
+                        throw new ParseCancellationException("Cannot compare string with non-string!");
+                    }
                 }
-                colType = table.meta.coltypes.get(colID);
-                comparedValue = parseLiteral(second.literal_value(), colType);
-                if(comparedValue == null)
-                    throw new ParseCancellationException("Not supported for comparison with null!");
-                lt = le = gt = ge = eq = neq = false;
-                if(ctx.K_LT() != null) lt = true;
-                if(ctx.K_LE() != null) le = true;
-                if(ctx.K_GT() != null) gt = true;
-                if(ctx.K_GE() != null) ge = true;
-                if(ctx.K_EQ() != null) eq = true;
-                if(ctx.K_NEQ() != null) neq = true;
-                queriedCols = new HashSet<>(Arrays.asList(colID));
             }else {
-                left = new Expression(ctx.logical_expr(0), table);
-                right = new Expression(ctx.logical_expr(1), table);
-                isAnd = ctx.K_AND() != null;
-                isOr = ctx.K_OR() != null;
-                queriedCols = new HashSet<>(left.queriedCols);
-                queriedCols.addAll(right.queriedCols);
+                left = new Expression(ctx.logical_expr(0), tableIDAndColID);
+                right = new Expression(ctx.logical_expr(1), tableIDAndColID);
+                if(ctx.K_AND() != null)
+                    expressionType = ExpressionType.AND_EXPR;
+                if(ctx.K_OR() != null)
+                    expressionType = ExpressionType.OR_EXPR;
             }
+        }
+
+        public Expression() {
         }
 
         public Expression(boolean constant) {
-            this.isConstant = true;
+            expressionType = ExpressionType.CONST_VALUE;
             this.constant = constant;
-            isAnd = isOr = isLeaf = false;
-            queriedCols = new HashSet<>();
         }
 
-        public boolean apply(MainDataFile.SearchResult result)
+        public static Expression And(Expression a, Expression b)
         {
-            if(isConstant)
-                return constant;
-            if(isAnd)
-            {
-                return left.apply(result) && right.apply(result);
-            }
-            if(isOr)
-            {
-                return left.apply(result) || right.apply(result);
-            }
-            if(isLeaf)
-            {
-                int ans;
-                if(colType == Integer.class)
+            Expression ans = new Expression();
+            ans.expressionType = ExpressionType.AND_EXPR;
+            ans.left = a;
+            ans.right = b;
+            return ans;
+        }
+
+        public static Expression getEqualityExpression(Collection<String> names, ArrayList<Relation> tables)
+        {// return expression with `a.a = b.a && a.c = b.c` used in natural join
+            return names.stream().map(x -> {
+                Expression ans = new Expression();
+                ans.expressionType = ExpressionType.LEAF_EXPR;
+                ans.op = Opetator.EQ;
+                ans.hasLiteral = false;
+                ans.leftTableID = 0;
+                ans.rightTableID = 1;
+                ans.leftTableColID = tables.get(0).meta.colnames.indexOf(x);
+                ans.rightTableColID = tables.get(1).meta.colnames.indexOf(x);
+                ans.leftColType = tables.get(ans.leftTableID).meta.coltypes.get(ans.leftTableColID);
+                ans.rightColType = tables.get(ans.rightTableID).meta.coltypes.get(ans.rightTableColID);
+                if((ans.leftColType == String.class && ans.rightColType == String.class)
+                        || (ans.leftColType != String.class && ans.rightColType != String.class))
                 {
-                    ans = Integer.compare((Integer)result.key.get(colID), (Integer)comparedValue);
-                }else if(colType == Long.class)
-                {
-                    ans = Long.compare((Long)result.key.get(colID), (Long)comparedValue);
-                }else if(colType == Float.class)
-                {
-                    ans = Float.compare((Float)result.key.get(colID), (Float)comparedValue);
-                }else if(colType == Double.class)
-                {
-                    ans = Double.compare((Double)result.key.get(colID), (Double)comparedValue);
-                }else if(colType == String.class)
-                {
-                    ans = ((String)result.key.get(colID)).compareTo((String)comparedValue);
-                }else {ans = 0;}
-                if(lt) return ans < 0;
-                if(le) return ans <= 0;
-                if(gt) return ans > 0;
-                if(ge) return ans >= 0;
-                if(eq) return ans == 0;
-                if(neq) return ans != 0;
-                return false;
+                }else {
+                    throw new ParseCancellationException("Cannot compare string with non-string!");
+                }
+                return ans;
+            }).reduce(new Expression(true), Expression::And);
+        }
+
+        public boolean apply(ArrayList<MainDataFile.SearchResult> results)
+        {
+            switch (expressionType) {
+                case LEAF_EXPR:
+                    int ans = 0;
+                    if(hasLiteral)
+                    {
+                        Object left = results.get(leftTableID).key.get(leftTableColID);
+                        if(left == null || literal == null)
+                        {
+                            return false;
+                        }
+                        if(leftColType == Integer.class)
+                        {
+                            ans = Integer.compare((Integer)left, (Integer)literal);
+                        }else if(leftColType == Long.class)
+                        {
+                            ans = Long.compare((Long)left, (Long)literal);
+                        }else if(leftColType == Float.class)
+                        {
+                            ans = Float.compare((Float)left, (Float)literal);
+                        }else if(leftColType == Double.class)
+                        {
+                            ans = Double.compare((Double)left, (Double)literal);
+                        }else if(leftColType == String.class)
+                        {
+                            ans = ((String)left).compareTo((String)literal);
+                        }else {ans = 0;}
+                    }else {
+                        Object left = results.get(leftTableID).key.get(leftTableColID),
+                                right = results.get(rightTableID).key.get(rightTableColID);
+                        if(left == null || right == null)
+                            return false;
+                        if(leftColType == String.class && rightColType == String.class)
+                        {
+                            ans = ((String)left).compareTo((String)right);
+                        }else if(leftColType != String.class && rightColType != String.class)
+                        {// number compare
+                            BigDecimal firstVal = null, secondVal = null;
+                            if(leftColType == Integer.class)
+                            {
+                                firstVal = new BigDecimal((Integer)left);
+                            }else if(leftColType == Long.class)
+                            {
+                                firstVal = new BigDecimal((Long)left);
+                            }else if(leftColType == Float.class)
+                            {
+                                firstVal = new BigDecimal((Float)left);
+                            }else if(leftColType == Double.class)
+                            {
+                                firstVal = new BigDecimal((Double) left);
+                            }
+
+                            if(rightColType == Integer.class)
+                            {
+                                secondVal = new BigDecimal((Integer)right);
+                            }else if(rightColType == Long.class)
+                            {
+                                secondVal = new BigDecimal((Long)right);
+                            }else if(rightColType == Float.class)
+                            {
+                                secondVal = new BigDecimal((Float)right);
+                            }else if(rightColType == Double.class)
+                            {
+                                secondVal = new BigDecimal((Double) right);
+                            }else {ans = 0;}
+                            ans = firstVal.compareTo(secondVal);
+                        }
+                    }
+                    switch (op) {
+                        case LT:
+                            return ans < 0;
+                        case LE:
+                            return ans <= 0;
+                        case GT:
+                            return ans > 0;
+                        case GE:
+                            return ans >= 0;
+                        case EQ:
+                            return ans == 0;
+                        case NEQ:
+                            return ans != 0;
+                    }
+                case AND_EXPR:
+                    return left.apply(results) && right.apply(results);
+                case OR_EXPR:
+                    return left.apply(results) || right.apply(results);
+                case CONST_VALUE:
+                    return constant;
             }
             return false;
         }
@@ -422,21 +610,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             {// col=1 and blabla
                 indexableExpr = expr.logical_expr(0);
                 tree = selectIndex(expr.logical_expr(0), table);
-                expression = new Expression(expr.logical_expr(1), table);
+                expression = new Expression(expr.logical_expr(1), new ArrayList<>(Arrays.asList(table)));
             }else{
-                expression = new Expression(expr, table);
+                expression = new Expression(expr, new ArrayList<>(Arrays.asList(table)));
             }
         }
-        HashSet<Integer> queriedNullableCols = (HashSet<Integer>)expression.queriedCols.clone();
-        queriedNullableCols.retainAll(table.meta.nullableColIds);
-        ArrayList<BPlusTree> queriedNullableColTree = table.nullTrees
-                .stream()
-                .filter(x -> queriedNullableCols.contains(x.conf.colIDs.get(0)))
-                .collect(Collectors.toCollection(ArrayList::new));
-        ArrayList<BPlusTree> notQueriedNullableColTree = table.nullTrees
-                .stream()
-                .filter(x -> !queriedNullableCols.contains(x.conf.colIDs.get(0)))
-                .collect(Collectors.toCollection(ArrayList::new));
         // `indexableExpr`, `tree`, `expression`
         // if `indexableExpr == null`, linear scan and evaluate `expression`
         // else, use `tree` to search for `indexableExpr` and then evaluate the `expression`
@@ -487,33 +665,25 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 ans = table.readRows(findRowIDs);
             }
         }
+        Function<MainDataFile.SearchResult, Boolean> pred = result -> {
+            try{
+                for(BPlusTree nullTree : table.nullTrees)
+                {
+                    if(nullTree.search(new ArrayList<Object>(Arrays.asList(result.rowID))).size() != 0)
+                    {
+                        result.key.set(nullTree.conf.colIDs.get(0), null);
+                    }
+                }
+                return expression.apply(new ArrayList<>(Arrays.asList(result)));
+            }catch (Exception e){
+                throw new ParseCancellationException("Error!");
+            }
+        };
         if(ans == null){
-            ans = table.data.searchRows(x -> expression.apply(x));
+            ans = table.data.searchRows(pred);
         }else {
-            ans = ans.stream().filter(expression::apply).collect(Collectors.toCollection(LinkedList::new));
-        }
-        // remove null rows in comparison
-        for(BPlusTree nullTree : queriedNullableColTree)
-        {
-            LinkedList<MainDataFile.SearchResult> tmp = new LinkedList<>();
-            for(MainDataFile.SearchResult each : ans)
-            {
-                if(nullTree.search(new ArrayList<Object>(Arrays.asList(each.rowID))).size() == 0)
-                {
-                    tmp.add(each);
-                }
-            }
-            ans = tmp;
-        }
-        for(BPlusTree nullTree : notQueriedNullableColTree)
-        {
-            for(MainDataFile.SearchResult each : ans)
-            {
-                if(nullTree.search(new ArrayList<Object>(Arrays.asList(each.rowID))).size() != 0)
-                {
-                    each.key.set(nullTree.conf.colIDs.get(0), null);
-                }
-            }
+            ans = ans.stream().filter(pred::apply)
+                    .collect(Collectors.toCollection(LinkedList::new));
         }
         return ans;
     }
@@ -529,8 +699,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             if(expr == null)
             {
                 long nrows = table.data.getElementCount();
-                currentDB.dropRelation(table_name);
-                currentDB.addRelation(table_name, table);
+                table.deleteAllData();
                 return ResultTable.getSimpleMessageTable(String.format("%d row(s) deleted.", nrows));
             }
             LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
@@ -712,7 +881,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         }
     }
 
-    private Object parseLiteral(minisqlParser.Literal_valueContext element, Type colType)
+    private static Object parseLiteral(minisqlParser.Literal_valueContext element, Type colType)
     {
         if(element.K_NULL() != null)
         {
@@ -822,9 +991,9 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitSelect_table(minisqlParser.Select_tableContext ctx) {
         try{
-            if(ctx.join_clause() == null)
+            if(ctx.join_operator() == null)
             {// simple selection for just one table
-                String table_name = ctx.table_name().IDENTIFIER().getText();
+                String table_name = ctx.table_name(0).IDENTIFIER().getText();
                 if(currentDB.getRelation(table_name) == null)
                     return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table_name));
                 Relation table = currentDB.getRelation(table_name);
@@ -842,8 +1011,121 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         .collect(Collectors.toCollection(ArrayList::new));
                 return new ResultTable(colNames, data);
             }else {
-                // TODO JOIN SELECT
-                return ResultTable.getSimpleMessageTable("Unsupported");
+                String table1_name = ctx.table_name(0).IDENTIFIER().getText();
+                Relation table1 = currentDB.getRelation(table1_name);
+                if(table1 == null)
+                    return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table1_name));
+                String table2_name = ctx.table_name(1).IDENTIFIER().getText();
+                Relation table2 = currentDB.getRelation(table2_name);
+                if(table2 == null)
+                    return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table2_name));
+
+                ArrayList<Relation> tables = new ArrayList<>(Arrays.asList(table1, table2));
+                TableIDAndColID tableIDAndColID = new TableIDAndColID(tables);
+                ArrayList<Pair<MainDataFile.SearchResult, MainDataFile.SearchResult>> joined_results = new ArrayList<>();
+                Expression expression;
+
+                if(ctx.join_operator().K_CARTESIAN() != null)
+                {// cartesian product
+                    assert ctx.join_constraint() == null : "Select table failed: Cannot use join constraint in cartesian product";
+                    expression = new Expression(true);
+                }else if(ctx.join_operator().K_NATURAL() != null ||
+                        (ctx.join_operator().K_NATURAL() == null && ctx.join_constraint() != null && ctx.join_constraint().K_USING() != null))
+                {// natural join or join using xxx
+                    assert ctx.join_constraint() == null : "Select table failed: Cannot use join constraint in natural join";
+                    HashSet<String> commonNames = new HashSet<>(table1.meta.colnames);
+                    commonNames.retainAll(new HashSet<>(table2.meta.colnames));
+                    assert commonNames.size() > 0 : String.format("No common column names for table %s and %s.", table1_name, table2_name);
+                    HashSet<String> namesToUse;
+                    if(ctx.join_operator().K_NATURAL() != null)
+                    {//natural join
+                        namesToUse = commonNames;
+                    }else{
+                        ArrayList<String> usingNames = ctx
+                                .join_constraint()
+                                .column_name()
+                                .stream()
+                                .map(x -> x.IDENTIFIER().getText())
+                                .collect(Collectors.toCollection(ArrayList::new));
+                        for(String name : usingNames)
+                        {
+                            assert commonNames.contains(name) : String.format("Column (%s) is not a common name.", name);
+                        }
+                        namesToUse = new HashSet<>(usingNames);
+                    }
+                    // parse equality expressions
+                    expression = Expression.getEqualityExpression(namesToUse, tables);
+                }else{
+                    // parse logical expression
+                    assert ctx.join_operator().K_NATURAL() == null && ctx.join_constraint() != null && ctx.join_constraint().K_ON() != null
+                            : "Illegal join constraint.";
+                    expression = new Expression(ctx.join_constraint().logical_expr(), tableIDAndColID);
+                }
+
+                // expression && where logical expression
+                Expression where_expression =
+                        ctx.K_WHERE() != null ? new Expression(ctx.logical_expr(), tableIDAndColID) : new Expression(true);
+                final Expression final_expression = Expression.And(expression, where_expression);
+
+                table1.data.searchRows(result1 -> {
+                    try{
+                        for(BPlusTree nullTree : table1.nullTrees)
+                        {
+                            if(nullTree.search(new ArrayList<Object>(Arrays.asList(result1.rowID))).size() != 0)
+                            {
+                                result1.key.set(nullTree.conf.colIDs.get(0), null);
+                            }
+                        }
+                        table2.data.searchRows(result2 -> {
+                            try{
+                                for(BPlusTree nullTree : table2.nullTrees)
+                                {
+                                    if(nullTree.search(new ArrayList<Object>(Arrays.asList(result2.rowID))).size() != 0)
+                                    {
+                                        result2.key.set(nullTree.conf.colIDs.get(0), null);
+                                    }
+                                }
+                                if(final_expression.apply(new ArrayList<>(Arrays.asList(result1, result2))))
+                                {
+                                    joined_results.add(new Pair<>(result1, result2));
+                                }
+                            }catch (Exception e){
+                                throw new ParseCancellationException("Error!");
+                            }
+                            return false;
+                        });
+                        return false;
+                    }catch (Exception e){
+                        throw new ParseCancellationException("Error!");
+                    }
+                });
+
+                // col select from joined_results
+                ArrayList<Pair<Integer, Integer>> tabIDAndColIDPairs = ctx.result_column().stream().map(x -> {
+                    return tableIDAndColID.getTableIDAndColID(
+                            x.table_name() != null ? x.table_name().IDENTIFIER().getText() : null,
+                            x.column_name().IDENTIFIER().getText());
+                }).collect(Collectors.toCollection(ArrayList::new));
+                ArrayList<String> colnames = ctx
+                        .result_column()
+                        .stream()
+                        .map(
+                            x ->
+                                    (x.table_name() != null ? x.table_name().IDENTIFIER().getText() + "." : "")
+                                            + x.column_name().IDENTIFIER().getText())
+                        .collect(Collectors.toCollection(ArrayList::new));
+                ArrayList<ArrayList<Object>> values =
+                    joined_results
+                        .stream()
+                        .map(
+                            rowPair -> tabIDAndColIDPairs.stream().map(
+                                    id_pair -> {
+                                        Integer tabID = id_pair.a, colID = id_pair.b;
+                                        return (tabID == 1 ? rowPair.a : rowPair.b).key.get(colID);
+                                    }
+                            ).collect(Collectors.toCollection(ArrayList::new))
+                        ).collect(Collectors.toCollection(ArrayList::new));
+                return new ResultTable(colnames, values);
             }
         }catch (Exception e){
             throw new ParseCancellationException(e);

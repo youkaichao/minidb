@@ -144,12 +144,6 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitResult_column(minisqlParser.Result_columnContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link minisqlParser#join_clause}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitJoin_clause(minisqlParser.Join_clauseContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link minisqlParser#join_operator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
