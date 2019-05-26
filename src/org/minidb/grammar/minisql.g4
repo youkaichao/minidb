@@ -31,9 +31,11 @@ table_constraint
  ;
 
 logical_expr
- : value_expr ( K_LT | K_LE | K_GT | K_GE | K_EQ | K_NEQ ) value_expr
- | logical_expr K_AND logical_expr
+ : logical_expr K_AND logical_expr
  | logical_expr K_OR logical_expr
+ | '(' logical_expr K_AND logical_expr ')'
+ | '(' logical_expr K_OR logical_expr ')'
+ | value_expr ( K_LT | K_LE | K_GT | K_GE | K_EQ | K_NEQ ) value_expr
  ;
 
 value_expr

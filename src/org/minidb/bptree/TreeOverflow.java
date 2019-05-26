@@ -64,7 +64,7 @@ class TreeOverflow extends TreeNode {
         r.seek(getPageIndex());
 
         byte[] buffer = new byte[conf.pageSize];
-        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
         // now write the node type
         bbuffer.putShort(getPageType());
 

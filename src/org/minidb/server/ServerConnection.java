@@ -1,21 +1,18 @@
 package org.minidb.server;
 
 import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.atn.ATNConfigSet;
-import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
-import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.minidb.bptree.BPlusTree;
+import org.minidb.bptree.MainDataFile;
 import org.minidb.database.Database;
 import org.minidb.exception.MiniDBException;
 import org.minidb.grammar.*;
 import org.minidb.relation.Relation;
 import org.minidb.relation.RelationMeta;
 import org.minidb.utils.Misc;
-import org.minidb.relation.*;
+
 import java.io.*;
 import java.lang.reflect.Type;
 import java.net.Socket;
@@ -264,10 +261,284 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         }
     }
 
+    private BPlusTree selectIndex(minisqlParser.Logical_exprContext ctx, Relation table)
+    {// index optimization can only be used for literal equality with index, such as col = 1
+        boolean literalEq = ctx != null
+                && ctx.value_expr() != null
+                && ctx.K_EQ() != null
+                && ctx.value_expr(1).literal_value() != null
+                && ctx.value_expr(0).column_name() != null;
+        if(!literalEq) return null;
+        int colID = table.meta.colnames.indexOf(ctx.value_expr(0).column_name().IDENTIFIER().getText());
+        if(colID == -1) return null;
+        // check the value
+        parseLiteral(ctx.value_expr(1).literal_value(), table.meta.coltypes.get(colID));
+        // find the index to be used
+        for(BPlusTree tree : table.superKeyTrees)
+        {
+            if(tree.conf.colIDs.get(0) == colID)
+            {
+                return tree;
+            }
+        }
+        for(BPlusTree tree : table.indexTrees)
+        {
+            if(tree.conf.colIDs.get(0) == colID)
+            {
+                return tree;
+            }
+        }
+        return null;
+    }
+
+    private class Expression
+    {
+        boolean isLeaf;
+        boolean isAnd;
+        boolean isOr;
+        Expression left, right;
+        int colID;
+        Type colType;
+        Object comparedValue;
+        boolean lt, le, gt, ge, eq, neq;
+        boolean isConstant, constant;
+        HashSet<Integer> queriedCols;
+
+        public Expression(minisqlParser.Logical_exprContext ctx, Relation table) {
+            if(ctx.value_expr() != null)
+            {
+                isLeaf = true; isAnd = isOr = false; left = right = null;
+                minisqlParser.Value_exprContext first = ctx.value_expr(0), second = ctx.value_expr(1), tmp = null;
+                if(first.literal_value() != null && second.literal_value() != null)
+                {
+                    throw new ParseCancellationException("Not supported for comparison with two literal values!");
+                }
+                if(first.column_name() != null && second.column_name() != null)
+                {
+                    throw new ParseCancellationException("Not supported for comparison with two columns!");
+                }
+                if(first.table_name() != null || second.table_name() != null)
+                {
+                    throw new ParseCancellationException("Table name Not supported here!");
+                }
+                if(first.literal_value() != null && second.column_name() != null)
+                {
+                    tmp = first; first = second; second = tmp;
+                }
+                // now it is in the type of `col = literal`
+                String colname = first.column_name().IDENTIFIER().getText();
+                colID = table.meta.colnames.indexOf(colname);
+                if(colID == -1)
+                {
+                    throw new ParseCancellationException(String.format("Column name (%s) not found!", colname));
+                }
+                colType = table.meta.coltypes.get(colID);
+                comparedValue = parseLiteral(second.literal_value(), colType);
+                if(comparedValue == null)
+                    throw new ParseCancellationException("Not supported for comparison with null!");
+                lt = le = gt = ge = eq = neq = false;
+                if(ctx.K_LT() != null) lt = true;
+                if(ctx.K_LE() != null) le = true;
+                if(ctx.K_GT() != null) gt = true;
+                if(ctx.K_GE() != null) ge = true;
+                if(ctx.K_EQ() != null) eq = true;
+                if(ctx.K_NEQ() != null) neq = true;
+                queriedCols = new HashSet<>(Arrays.asList(colID));
+            }else {
+                left = new Expression(ctx.logical_expr(0), table);
+                right = new Expression(ctx.logical_expr(1), table);
+                isAnd = ctx.K_AND() != null;
+                isOr = ctx.K_OR() != null;
+                queriedCols = new HashSet<>(left.queriedCols);
+                queriedCols.addAll(right.queriedCols);
+            }
+        }
+
+        public Expression(boolean constant) {
+            this.isConstant = true;
+            this.constant = constant;
+            isAnd = isOr = isLeaf = false;
+            queriedCols = new HashSet<>();
+        }
+
+        public boolean apply(MainDataFile.SearchResult result)
+        {
+            if(isConstant)
+                return constant;
+            if(isAnd)
+            {
+                return left.apply(result) && right.apply(result);
+            }
+            if(isOr)
+            {
+                return left.apply(result) || right.apply(result);
+            }
+            if(isLeaf)
+            {
+                int ans;
+                if(colType == Integer.class)
+                {
+                    ans = Integer.compare((Integer)result.key.get(colID), (Integer)comparedValue);
+                }else if(colType == Long.class)
+                {
+                    ans = Long.compare((Long)result.key.get(colID), (Long)comparedValue);
+                }else if(colType == Float.class)
+                {
+                    ans = Float.compare((Float)result.key.get(colID), (Float)comparedValue);
+                }else if(colType == Double.class)
+                {
+                    ans = Double.compare((Double)result.key.get(colID), (Double)comparedValue);
+                }else if(colType == String.class)
+                {
+                    ans = ((String)result.key.get(colID)).compareTo((String)comparedValue);
+                }else {ans = 0;}
+                if(lt) return ans < 0;
+                if(le) return ans <= 0;
+                if(gt) return ans > 0;
+                if(ge) return ans >= 0;
+                if(eq) return ans == 0;
+                if(neq) return ans != 0;
+                return false;
+            }
+            return false;
+        }
+    }
+
+    // execute the query on the table
+    private LinkedList<MainDataFile.SearchResult> query(minisqlParser.Logical_exprContext expr, Relation table) throws IOException {
+        minisqlParser.Logical_exprContext indexableExpr = null;
+        BPlusTree tree = null;
+        Expression expression;
+        if(expr == null)
+        {// no where clause, select all data
+            expression = new Expression(true);
+        }else {
+            tree = selectIndex(expr, table);
+            if(tree !=null)
+            {// only a `col = 1`
+                indexableExpr = expr;
+                expression = new Expression(true);
+            }else if(expr.K_AND() != null && selectIndex(expr.logical_expr(0), table) != null)
+            {// col=1 and blabla
+                indexableExpr = expr.logical_expr(0);
+                tree = selectIndex(expr.logical_expr(0), table);
+                expression = new Expression(expr.logical_expr(1), table);
+            }else{
+                expression = new Expression(expr, table);
+            }
+        }
+        HashSet<Integer> queriedNullableCols = (HashSet<Integer>)expression.queriedCols.clone();
+        queriedNullableCols.retainAll(table.meta.nullableColIds);
+        ArrayList<BPlusTree> queriedNullableColTree = table.nullTrees
+                .stream()
+                .filter(x -> queriedNullableCols.contains(x.conf.colIDs.get(0)))
+                .collect(Collectors.toCollection(ArrayList::new));
+        ArrayList<BPlusTree> notQueriedNullableColTree = table.nullTrees
+                .stream()
+                .filter(x -> !queriedNullableCols.contains(x.conf.colIDs.get(0)))
+                .collect(Collectors.toCollection(ArrayList::new));
+        // `indexableExpr`, `tree`, `expression`
+        // if `indexableExpr == null`, linear scan and evaluate `expression`
+        // else, use `tree` to search for `indexableExpr` and then evaluate the `expression`
+        LinkedList<MainDataFile.SearchResult> ans = null;
+        if(tree != null)
+        {// use index
+            String colName = indexableExpr.value_expr(0).column_name().IDENTIFIER().getText();
+            Integer colID = table.meta.colnames.indexOf(colName);
+            Type colType = table.meta.coltypes.get(colID);
+            Object value = parseLiteral(indexableExpr.value_expr(1).literal_value(), colType);
+            if(tree.conf.colIDs.size() == 1)
+            {// exact equality comparison
+                LinkedList<Long> findRowIDs = tree.search(new ArrayList<Object>(Arrays.asList(value)));
+                ans = table.readRows(findRowIDs);
+            }else{// partial search
+                ArrayList<Object> minKey = new ArrayList<>(), maxKey = new ArrayList<>();
+                minKey.add(value); maxKey.add(value);
+                for (int i = 1; i < tree.conf.colIDs.size(); ++i)
+                {
+                    colType = tree.conf.types.get(i);
+                    if(colType == Integer.class)
+                    {
+                        minKey.add(Integer.MIN_VALUE);
+                        maxKey.add(Integer.MAX_VALUE);
+                    }else if(colType == Long.class)
+                    {
+                        minKey.add(Long.MIN_VALUE);
+                        maxKey.add(Long.MAX_VALUE);
+                    }else if(colType == Float.class)
+                    {
+                        minKey.add(Float.MIN_VALUE);
+                        maxKey.add(Float.MAX_VALUE);
+                    }else if(colType == Double.class)
+                    {
+                        minKey.add(Double.MIN_VALUE);
+                        maxKey.add(Double.MAX_VALUE);
+                    }else if(colType == String.class)
+                    {
+                        // char is unicode, while byte is only a byte.
+                        // empty string is the smallest
+                        char[] tmp = new char[tree.conf.sizes.get(i) + 1];
+                        Arrays.fill(tmp, Character.MAX_VALUE);
+                        minKey.add("");
+                        maxKey.add(new String(tmp));
+                    }
+                }
+                LinkedList<Long> findRowIDs = tree.rangeSearch(minKey, maxKey, true, true);
+                ans = table.readRows(findRowIDs);
+            }
+        }
+        if(ans == null){
+            ans = table.data.searchRows(x -> expression.apply(x));
+        }else {
+            ans = ans.stream().filter(expression::apply).collect(Collectors.toCollection(LinkedList::new));
+        }
+        // remove null rows in comparison
+        for(BPlusTree nullTree : queriedNullableColTree)
+        {
+            LinkedList<MainDataFile.SearchResult> tmp = new LinkedList<>();
+            for(MainDataFile.SearchResult each : ans)
+            {
+                if(nullTree.search(new ArrayList<Object>(Arrays.asList(each.rowID))).size() == 0)
+                {
+                    tmp.add(each);
+                }
+            }
+            ans = tmp;
+        }
+        for(BPlusTree nullTree : notQueriedNullableColTree)
+        {
+            for(MainDataFile.SearchResult each : ans)
+            {
+                if(nullTree.search(new ArrayList<Object>(Arrays.asList(each.rowID))).size() != 0)
+                {
+                    each.key.set(nullTree.conf.colIDs.get(0), null);
+                }
+            }
+        }
+        return ans;
+    }
+
     @Override
     public ResultTable visitDelete_table(minisqlParser.Delete_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
+        try{
+            String table_name = ctx.table_name().IDENTIFIER().getText();
+            if(currentDB.getRelation(table_name) == null)
+                return ResultTable.getSimpleMessageTable(String.format("Delete table failed: table %s does not exists.", table_name));
+            Relation table = currentDB.getRelation(table_name);
+            minisqlParser.Logical_exprContext expr = ctx.logical_expr();
+            if(expr == null)
+            {
+                long nrows = table.data.getElementCount();
+                currentDB.dropRelation(table_name);
+                currentDB.addRelation(table_name, table);
+                return ResultTable.getSimpleMessageTable(String.format("%d row(s) deleted.", nrows));
+            }
+            LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
+            table.delete(ans.stream().map(x -> x.rowID).collect(Collectors.toCollection(ArrayList::new)));
+            return ResultTable.getSimpleMessageTable(String.format("%d row(s) deleted.", ans.size()));
+        }catch (Exception e){
+            throw new ParseCancellationException(e);
+        }
     }
 
     @Override
@@ -441,6 +712,35 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         }
     }
 
+    private Object parseLiteral(minisqlParser.Literal_valueContext element, Type colType)
+    {
+        if(element.K_NULL() != null)
+        {
+            return null;
+        }
+        String text = element.getText();
+        if(colType == Integer.class)
+        {
+            return Integer.valueOf(text);
+        }else if(colType == Long.class)
+        {
+            return Long.valueOf(text);
+        }else if(colType == Float.class)
+        {
+            return Float.valueOf(text);
+        }else if(colType == Double.class)
+        {
+            return Double.valueOf(text);
+        }else if(colType == String.class)
+        {
+            assert text.length() >= 2 && text.startsWith("'") && text.endsWith("'") : String.format("Illegal string literal %s!", text);
+            text = text.substring(1, text.length() - 1);
+            text = StringEscapeUtils.unescapeJava(text);
+            return text;
+        }
+        return null;
+    }
+
     @Override
     public ResultTable visitInsert_table(minisqlParser.Insert_tableContext ctx) {
         try {
@@ -505,33 +805,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 Object[] literal_row = new Object[row.size()];
                 for (int i = 0; i < row.size(); ++i)
                 {
-                    minisqlParser.Literal_valueContext element = row.get(i);
-                    if(element.K_NULL() != null)
-                    {
-                        literal_row[i] = null;
-                        continue;
-                    }
-                    Type colType = table.meta.coltypes.get(i);
-                    if(colType == Integer.class)
-                    {
-                        literal_row[i] = Integer.valueOf(row.get(i).getText());
-                    }else if(colType == Long.class)
-                    {
-                        literal_row[i] = Long.valueOf(row.get(i).getText());
-                    }else if(colType == Float.class)
-                    {
-                        literal_row[i] = Float.valueOf(row.get(i).getText());
-                    }else if(colType == Double.class)
-                    {
-                        literal_row[i] = Double.valueOf(row.get(i).getText());
-                    }else if(colType == String.class)
-                    {
-                        String text = row.get(i).getText();
-                        assert text.length() >= 2 && text.startsWith("'") && text.endsWith("'") : String.format("Illegal string literal %s!", text);
-                        text = text.substring(1, text.length() - 1);
-                        text = StringEscapeUtils.unescapeJava(text);
-                        literal_row[i] = text;
-                    }
+                    literal_row[i] = parseLiteral(row.get(i), table.meta.coltypes.get(i));
                 }
                 literal_values.add(new ArrayList<Object>(Arrays.asList(literal_row)));
             }
@@ -547,8 +821,33 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     @Override
     public ResultTable visitSelect_table(minisqlParser.Select_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
+        try{
+            if(ctx.join_clause() == null)
+            {// simple selection for just one table
+                String table_name = ctx.table_name().IDENTIFIER().getText();
+                if(currentDB.getRelation(table_name) == null)
+                    return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table_name));
+                Relation table = currentDB.getRelation(table_name);
+                minisqlParser.Logical_exprContext expr = ctx.logical_expr();
+                LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
+                // select columns
+                ArrayList<String> colNames = ctx.result_column()
+                        .stream()
+                        .map(x -> x.column_name().IDENTIFIER().getText()).collect(Collectors.toCollection(ArrayList::new));
+                ArrayList<Integer> colIDs = colNames.stream().map(x -> table.meta.colnames.indexOf(x)).collect(Collectors.toCollection(ArrayList::new));
+                if(colIDs.contains(-1))
+                    return ResultTable.getSimpleMessageTable("Unknown column name(s) for selection!");
+                ArrayList<ArrayList<Object>> data = ans.stream()
+                        .map(x -> colIDs.stream().map(y -> x.key.get(y)).collect(Collectors.toCollection(ArrayList::new)))
+                        .collect(Collectors.toCollection(ArrayList::new));
+                return new ResultTable(colNames, data);
+            }else {
+                // TODO JOIN SELECT
+                return ResultTable.getSimpleMessageTable("Unsupported");
+            }
+        }catch (Exception e){
+            throw new ParseCancellationException(e);
+        }
     }
 
     @Override

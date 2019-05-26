@@ -40,6 +40,7 @@ public class MainDataFile {
         String stmode = mode.substring(0, 2);
         file = new RandomAccessFile(filePath, stmode);
         if(f.exists() && !mode.contains("+")) {
+            file.seek(0);
             totalPages = file.length() / conf.pageSize;
             elementCount = file.readLong();
             long pindex = file.readLong();
@@ -49,7 +50,7 @@ public class MainDataFile {
                 freeSlots.add(pindex);
                 file.seek(pindex);
                 file.read(buffer, 0, buffer.length);
-                ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+                ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
                 pindex = bbuffer.getLong();
                 for (int i = 0; i < conf.nValidPointerInFreePage; i++) {
                     long index = bbuffer.getLong();
@@ -90,7 +91,7 @@ public class MainDataFile {
         long position = getFirstAvailablePageIndex();
         file.seek(position);
         byte[] buffer = new byte[conf.pageSize];
-        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
         bbuffer.putLong(rowID);
         conf.writeKey(bbuffer, key);
         rowID2position.insertPair(new ArrayList<Object>(Arrays.asList(rowID)), position);
@@ -117,7 +118,7 @@ public class MainDataFile {
         }
         byte[] buffer = new byte[conf.pageSize];
         file.read(buffer);
-        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
         bbuffer.getLong();
         return conf.readKey(bbuffer);
     }
@@ -125,16 +126,26 @@ public class MainDataFile {
     public void updateRow(long rowID, ArrayList<Object> newKey) throws IOException, MiniDBException {
         long position = rowID2position.search(new ArrayList<Object>(Arrays.asList(rowID))).get(0);
         byte[] buffer = new byte[conf.pageSize];
-        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
         bbuffer.putLong(rowID);
         conf.writeKey(bbuffer, newKey);
         file.seek(position);
         file.write(buffer);
     }
 
-    public class SearchResult{
-        ArrayList<Object> key;
-        long rowID;
+    public static class SearchResult{
+        public ArrayList<Object> key;
+        public long rowID;
+
+        public SearchResult(ArrayList<Object> key, long rowID) {
+            this.key = key;
+            this.rowID = rowID;
+        }
+
+        public SearchResult() {
+            key = null;
+            rowID = 0;
+        }
     }
 
     // linear scan
@@ -154,7 +165,7 @@ public class MainDataFile {
             file.seek(position);
             byte[] buffer = new byte[conf.pageSize];
             file.read(buffer);
-            ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+            ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
             SearchResult each = new SearchResult();
             each.rowID = bbuffer.getLong();
             each.key = conf.readKey(bbuffer);
@@ -173,14 +184,14 @@ public class MainDataFile {
 
         // trim file
         TreeSet<Long> tailFreePages = new TreeSet<>();
-        long lastPos = file.length() - 8;
-        while (true)
+        long lastPos = file.length() - conf.pageSize;
+        while (!freeSlots.isEmpty())
         {
             long last = freeSlots.pollLast();
             if(lastPos == last)
             {
                 tailFreePages.add(last);
-                lastPos -= 8;
+                lastPos -= conf.pageSize;
             }else{
                 break;
             }
@@ -192,7 +203,7 @@ public class MainDataFile {
             for (int i = 0; i < 20; i++) {
                 freeSlots.add(tailFreePages.pollFirst());
             }
-            file.setLength(file.length() - 8 * tailFreePages.size());
+            file.setLength(file.length() - conf.pageSize * tailFreePages.size());
         }
 
         Long[] positions = new Long[freeSlots.size()];
@@ -210,11 +221,11 @@ public class MainDataFile {
 
         byte[] buffer = new byte[conf.pageSize];
 
-        int ipage = 0, ifree = 0;
+        int ipage = 0, ifree = 1; // the first position is written in the file header
         while (ipage < pages && ifree < positions.length)
         {
             file.seek(positions[ipage++]);
-            ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+            ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
             if(ipage == pages)
             {// end
                 bbuffer.putLong(-1L);

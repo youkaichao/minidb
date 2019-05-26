@@ -14,13 +14,14 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.stream.Collectors;
 
 public class Relation {
     public RelationMeta meta;
     public String directory; // the directory to store the relation data
-    MainDataFile data; // main tree for the data
-    ArrayList<BPlusTree> superKeyTrees, indexTrees, nullTrees;
+    public MainDataFile data; // main tree for the data
+    public ArrayList<BPlusTree> superKeyTrees, indexTrees, nullTrees;
 
     // create the relation, save the meta data and create data trees
     public void create() throws IOException, MiniDBException {
@@ -276,5 +277,15 @@ public class Relation {
         {
             delete(rowID);
         }
+    }
+
+    public LinkedList<MainDataFile.SearchResult> readRows(Collection<Long> rowIDs)  throws IOException, MiniDBException
+    {
+        LinkedList<MainDataFile.SearchResult> ans = new LinkedList<MainDataFile.SearchResult>();
+        for(Long rowID : rowIDs)
+        {
+            ans.add(new MainDataFile.SearchResult(data.readRow(rowID), rowID));
+        }
+        return ans;
     }
 }

@@ -18,6 +18,14 @@ public class ResultTable implements Serializable {
         data = new ArrayList<ArrayList<Object>>();
     }
 
+    public ResultTable(ArrayList<String> colnames, ArrayList<ArrayList<Object>> values)
+    {
+        meta = new RelationMeta();
+        meta.ncols = colnames.size();
+        meta.colnames = colnames;
+        this.data = values;
+    }
+
     public static ResultTable getSimpleTable(String name, Collection<Object> values)
     {
         RelationMeta meta = new RelationMeta();

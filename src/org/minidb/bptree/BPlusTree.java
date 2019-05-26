@@ -1817,7 +1817,7 @@ public class BPlusTree {
         treeFile.seek(index);
         byte[] buffer = new byte[conf.pageSize];
         treeFile.read(buffer);
-        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.nativeOrder());
+        ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
 
         // get the page type
         TreeNode.TreeNodeType nt = getPageType(bbuffer.getShort());
