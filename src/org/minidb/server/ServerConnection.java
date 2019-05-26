@@ -1211,4 +1211,9 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             throw new ParseCancellationException(e);
         }
     }
+
+    @Override
+    public ResultTable visitComment(minisqlParser.CommentContext ctx) {
+        return ResultTable.getSimpleMessageTable("");
+    }
 }

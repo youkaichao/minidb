@@ -102,6 +102,13 @@ public interface minisqlVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExit(minisqlParser.ExitContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code comment}
+	 * labeled alternative in {@link minisqlParser#sql_stmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitComment(minisqlParser.CommentContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link minisqlParser#row}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

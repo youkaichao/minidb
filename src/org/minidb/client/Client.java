@@ -87,25 +87,30 @@ public class Client {
                 if(obj instanceof ResultTable)
                 {
                     ResultTable result  = (ResultTable) obj;
-                    for(String name : result.meta.colnames)
-                    {
-                        System.out.print(name);
-                        System.out.print('\t');
-                    }
-                    System.out.println();
-                    for(ArrayList<Object> row : result.data)
-                    {
-                        for(Object o : row)
+                    if(result.meta.colnames.get(0).equals("message") && ((String)result.data.get(0).get(0)).isEmpty())
+                    {// a comment
+                        System.out.println();
+                    }else{
+                        for(String name : result.meta.colnames)
                         {
-                            if(o == null)
-                            {
-                                System.out.print("[null]");
-                            }else {
-                                System.out.print(o.toString());
-                            }
-                            System.out.print("\t");
+                            System.out.print(name);
+                            System.out.print('\t');
                         }
                         System.out.println();
+                        for(ArrayList<Object> row : result.data)
+                        {
+                            for(Object o : row)
+                            {
+                                if(o == null)
+                                {
+                                    System.out.print("[null]");
+                                }else {
+                                    System.out.print(o.toString());
+                                }
+                                System.out.print("\t");
+                            }
+                            System.out.println();
+                        }
                     }
                 }
                 if(import_mode)
