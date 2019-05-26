@@ -919,7 +919,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText()).collect(Collectors.toCollection(HashSet::new)));
             boolean isInOrder = colNames.size() == 0;
             if(colNames.size() != 0)
-            {// insert with custon col name order
+            {// insert with custom col name order
                 if(colNames.size() != ctx.column_name().size())
                 {
                     return ResultTable.getSimpleMessageTable("Duplicate column names for insertion!");
@@ -1134,7 +1134,81 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     @Override
     public ResultTable visitUpdate_table(minisqlParser.Update_tableContext ctx) {
-        // TODO
-        return ResultTable.getSimpleMessageTable("Unsupported");
+        try{
+            String table_name = ctx.table_name().IDENTIFIER().getText();
+            if(currentDB.getRelation(table_name) == null)
+                return ResultTable.getSimpleMessageTable(String.format("Update table failed: table %s does not exists.", table_name));
+            Relation table = currentDB.getRelation(table_name);
+
+            //对指定的列名查重, 如果非重复列名和语句中的列名个数不等, 则说明语句中有重复列名
+            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText()).collect(Collectors.toCollection(HashSet::new)));
+            if(colNames.size() != ctx.column_name().size())
+            {
+                return ResultTable.getSimpleMessageTable("Update failed: cannot update rows with duplicate names!");
+            }
+
+            ArrayList<Pair<Integer, Object>> colAndValues = new ArrayList<>();
+            //解析&处理set子句
+            for(int i = 0; i < ctx.column_name().size(); i++)
+            {
+                //对一行column_name - literal_value组合:
+                minisqlParser.Column_nameContext column_name = ctx.column_name(i);
+                minisqlParser.Literal_valueContext literal_value = ctx.literal_value(i);
+
+                //根据column_name, 获取column的列序号
+                int colID = table.meta.colnames.indexOf(column_name.IDENTIFIER().getText());
+                if(colID == -1)
+                    return ResultTable.getSimpleMessageTable(String.format("Update failed: row %s not exist!", column_name.IDENTIFIER().getText()));
+
+                //根据literal_value, 获取要修改的内容
+                Object new_value = parseLiteral(literal_value, table.meta.coltypes.get(colID));
+                colAndValues.add(new Pair<>(colID, new_value));
+            }
+
+            //1: 根据where子句, 从待更新的table中取出所有原数据列
+            //2: 根据set子句, 把原数据列该改的部分改掉, 成为新数据列
+            //3: 把原数据列从表中删掉,把新数据列插进去.
+            //4: rollback, 如果第3步成功,那么update成功; 否则把新数据列删掉, 把原数据列插回去.
+            //当前进展: 基本功能实现, 可以考虑做: rollback
+
+            //解析where子句
+            minisqlParser.Logical_exprContext expr = ctx.logical_expr();
+            //没有where子句的话, expr == null, query将返回所有值.
+            LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
+            if(ans.size() == 0)
+            {
+                //查询结果为空
+                return ResultTable.getSimpleMessageTable("Update succeed: no row changed!");
+            }
+            ArrayList<ArrayList<Object>> data = new ArrayList<ArrayList<Object>>();
+            for(MainDataFile.SearchResult ans_item : ans)
+            {
+                data.add(ans_item.key);
+            }
+
+            //删除表中ans对应的列
+            table.delete(ans.stream().map(x -> x.rowID).collect(Collectors.toCollection(ArrayList::new)));
+
+            // set new data
+            for(Pair<Integer, Object> pair : colAndValues)
+            {
+                Integer colID = pair.a;
+                Object new_value = pair.b;
+                for(ArrayList<Object> data_item : data)
+                {
+                    data_item.set(colID, new_value);
+                }
+            }
+
+            //把新data插回去
+            for(ArrayList<Object> data_item : data)
+            {
+                table.insert(data_item);
+            }
+
+            return ResultTable.getSimpleMessageTable(String.format("%d row(s) updated.", ans.size()));
+        }catch (Exception e){
+            throw new ParseCancellationException(e);
+        }
     }
 }
