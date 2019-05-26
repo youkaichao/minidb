@@ -14,7 +14,7 @@ sql_stmt :
          | K_SHOW K_DATABASES EOF # show_dbs
          | K_SHOW K_DATABASE IDENTIFIER EOF # show_db
          | K_EXIT EOF # exit
-         | '#' .*? EOF # comment
+         | ('#' .*?)? EOF # comment
  ;
 
 row : '(' literal_value ( ',' literal_value )* ')';
