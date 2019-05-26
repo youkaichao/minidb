@@ -136,6 +136,7 @@ public class Configuration {
 
     public void writeKey(ByteBuffer r, ArrayList<Object> key) throws IOException
     {
+        padKey(key);
         for(int j = 0; j < types.size(); ++j)
         {
             if(types.get(j) == Integer.class)
