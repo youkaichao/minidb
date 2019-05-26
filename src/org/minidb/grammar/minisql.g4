@@ -1,20 +1,20 @@
 grammar minisql;
 
 sql_stmt :
-           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' EOF # create_table
-         | K_INSERT K_INTO table_name ( '(' column_name ( ',' column_name )* ')' )? ( K_VALUES row ( ',' row )* ) EOF # insert_table
-         | K_DELETE K_FROM table_name ( K_WHERE logical_expr )? EOF # delete_table
-         | K_DROP K_TABLE table_name EOF # drop_table
-         | K_UPDATE table_name K_SET column_name '=' literal_value ( ',' column_name '=' literal_value )* ( K_WHERE logical_expr )? EOF # update_table
-         | K_SELECT result_column ( ',' result_column )* K_FROM table_name (join_operator table_name join_constraint?)? ( K_WHERE logical_expr )? EOF # select_table
-         | K_SHOW K_TABLE IDENTIFIER EOF # show_table
-         | K_CREATE K_DATABASE IDENTIFIER EOF # create_db
-         | K_DROP K_DATABASE IDENTIFIER EOF # drop_db
-         | K_USE K_DATABASE IDENTIFIER EOF # use_db
-         | K_SHOW K_DATABASES EOF # show_dbs
-         | K_SHOW K_DATABASE IDENTIFIER EOF # show_db
-         | K_EXIT EOF # exit
-         | ('#' .*?)? EOF # comment
+           K_CREATE K_TABLE table_name '(' column_def ( ',' column_def )* ( ',' table_constraint )* ')' ';'? EOF # create_table
+         | K_INSERT K_INTO table_name ( '(' column_name ( ',' column_name )* ')' )? ( K_VALUES row ( ',' row )* ) ';'? EOF # insert_table
+         | K_DELETE K_FROM table_name ( K_WHERE logical_expr )? ';'? EOF # delete_table
+         | K_DROP K_TABLE table_name ';'? EOF # drop_table
+         | K_UPDATE table_name K_SET column_name '=' literal_value ( ',' column_name '=' literal_value )* ( K_WHERE logical_expr )? ';'? EOF # update_table
+         | K_SELECT result_column ( ',' result_column )* K_FROM table_name (join_operator table_name join_constraint?)? ( K_WHERE logical_expr )? ';'? EOF # select_table
+         | K_SHOW K_TABLE IDENTIFIER ';'? EOF # show_table
+         | K_CREATE K_DATABASE IDENTIFIER ';'? EOF # create_db
+         | K_DROP K_DATABASE IDENTIFIER ';'? EOF # drop_db
+         | K_USE K_DATABASE IDENTIFIER ';'? EOF # use_db
+         | K_SHOW K_DATABASES ';'? EOF # show_dbs
+         | K_SHOW K_DATABASE IDENTIFIER ';'? EOF # show_db
+         | K_EXIT ';'? EOF # exit
+         | ('#' .*?)? ';'? EOF # comment
  ;
 
 row : '(' literal_value ( ',' literal_value )* ')';

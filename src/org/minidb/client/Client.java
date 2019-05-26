@@ -74,6 +74,10 @@ public class Client {
                     }
                 }
                 command = commands.pollFirst();
+                if(import_mode)
+                {
+                    System.out.println(command);
+                }
                 if(command.toLowerCase().equals("exit"))
                 {
                     closed = true;
