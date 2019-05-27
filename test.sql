@@ -37,7 +37,7 @@ delete from inst where salary >= 90000;
 delete from dept where dept_name = 'Biology';
 update inst set dept_name = 'Comp. Sci.' where dept_name = 'Biology';
 
-select inst_name, salary from inst where dept_name = 'Comp. Sci.';
+select * from inst where dept_name = 'Comp. Sci.';
 
 select inst_name, inst.dept_name, salary, building, budget from inst natural join dept where dept.building = 'Taylor'
 

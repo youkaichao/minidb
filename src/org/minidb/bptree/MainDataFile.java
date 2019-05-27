@@ -189,9 +189,10 @@ public class MainDataFile {
         long lastPos = file.length() - conf.pageSize;
         while (!freeSlots.isEmpty())
         {
-            long last = freeSlots.pollLast();
+            long last = freeSlots.last();
             if(lastPos == last)
             {
+                freeSlots.pollLast();
                 tailFreePages.add(last);
                 lastPos -= conf.pageSize;
             }else{

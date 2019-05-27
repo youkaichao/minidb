@@ -385,7 +385,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
         public Expression(minisqlParser.Logical_exprContext ctx, TableIDAndColID tableIDAndColID)
         {
-            if(ctx.value_expr() != null)
+            if(ctx.value_expr().size() != 0)
             {
                 // leaf expression, a = b ; a.a = b.b; literal values are adjusted to the right side
                 expressionType = ExpressionType.LEAF_EXPR;
