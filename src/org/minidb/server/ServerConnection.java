@@ -99,7 +99,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
     private void add_to_ArrayList_by_name(ArrayList<ArrayList<Integer>> target, List<minisqlParser.Column_nameContext> source, ArrayList<String> colnames)
     {
-        ArrayList<Integer> int_source = source.stream().map(x -> colnames.indexOf(x.IDENTIFIER().getText())).collect(Collectors.toCollection(ArrayList::new));
+        ArrayList<Integer> int_source = source.stream().map(x -> colnames.indexOf(x.IDENTIFIER().getText().toLowerCase())).collect(Collectors.toCollection(ArrayList::new));
         if(int_source.indexOf(-1) != -1)
             throw new ParseCancellationException("Col name(s) not found!");
         add_unique_ArrayList(target, int_source);
@@ -118,7 +118,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     public ResultTable visitCreate_table(minisqlParser.Create_tableContext ctx) {
         try {
             //获取table_name
-            String table_name = ctx.table_name().IDENTIFIER().getText();
+            String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             if(currentDB.getRelation(table_name) != null)
                 return ResultTable.getSimpleMessageTable(String.format("Create table failed: table %s already exists.", table_name));
 
@@ -151,7 +151,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 ncols++;
 
                 //解析列名
-                colnames.add(column.column_name().IDENTIFIER().getText());
+                colnames.add(column.column_name().IDENTIFIER().getText().toLowerCase());
 
                 //解析列类型
                 //这一列是否已经指定了类型
@@ -278,7 +278,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 && ctx.value_expr(1).literal_value() != null
                 && ctx.value_expr(0).column_name() != null;
         if(!literalEq) return null;
-        int colID = table.meta.colnames.indexOf(ctx.value_expr(0).column_name().IDENTIFIER().getText());
+        int colID = table.meta.colnames.indexOf(ctx.value_expr(0).column_name().IDENTIFIER().getText().toLowerCase());
         if(colID == -1) return null;
         // check the value
         parseLiteral(ctx.value_expr(1).literal_value(), table.meta.coltypes.get(colID), table.meta.colsizes.get(colID));
@@ -423,8 +423,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     }
                 }
                 Pair<Integer, Integer> tmpPair = tableIDAndColID.getTableIDAndColID(
-                        first.table_name() != null ? first.table_name().IDENTIFIER().getText() : null,
-                        first.column_name().IDENTIFIER().getText()
+                        first.table_name() != null ? first.table_name().IDENTIFIER().getText().toLowerCase() : null,
+                        first.column_name().IDENTIFIER().getText().toLowerCase()
                 );
                 leftTableID = tmpPair.a;
                 leftTableColID = tmpPair.b;
@@ -439,8 +439,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         throw new ParseCancellationException("Not supported for comparison with null!");
                 }else{
                     tmpPair = tableIDAndColID.getTableIDAndColID(
-                            second.table_name() != null ? second.table_name().IDENTIFIER().getText() : null,
-                            second.column_name().IDENTIFIER().getText()
+                            second.table_name() != null ? second.table_name().IDENTIFIER().getText().toLowerCase() : null,
+                            second.column_name().IDENTIFIER().getText().toLowerCase()
                     );
                     rightTableID = tmpPair.a;
                     rightTableColID = tmpPair.b;
@@ -624,7 +624,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         LinkedList<MainDataFile.SearchResult> ans = null;
         if(tree != null)
         {// use index
-            String colName = indexableExpr.value_expr(0).column_name().IDENTIFIER().getText();
+            String colName = indexableExpr.value_expr(0).column_name().IDENTIFIER().getText().toLowerCase();
             Integer colID = table.meta.colnames.indexOf(colName);
             Type colType = table.meta.coltypes.get(colID);
             Object value = parseLiteral(indexableExpr.value_expr(1).literal_value(), colType, table.meta.colsizes.get(colID));
@@ -694,7 +694,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitDelete_table(minisqlParser.Delete_tableContext ctx) {
         try{
-            String table_name = ctx.table_name().IDENTIFIER().getText();
+            String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             if(currentDB.getRelation(table_name) == null)
                 return ResultTable.getSimpleMessageTable(String.format("Delete table failed: table %s does not exists.", table_name));
             Relation table = currentDB.getRelation(table_name);
@@ -716,7 +716,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitShow_table(minisqlParser.Show_tableContext ctx) {
         try {
-            String table_name = ctx.IDENTIFIER().getText();
+            String table_name = ctx.IDENTIFIER().getText().toLowerCase();
             Relation rel = currentDB.getRelation(table_name);
             if(rel == null) return  ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
             StringBuilder output_ctx = new StringBuilder();
@@ -774,7 +774,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitDrop_table(minisqlParser.Drop_tableContext ctx) {
         try {
-            String table_name = ctx.table_name().IDENTIFIER().getText();
+            String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             currentDB.dropRelation(table_name);
             return ResultTable.getSimpleMessageTable(String.format("Table (%s) dropped.", table_name));
         }catch (Exception e){
@@ -785,13 +785,13 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitCreate_db(minisqlParser.Create_dbContext ctx) {
         try {
-            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText());
+            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText().toLowerCase());
             if(Files.exists(dir))
             {
-                return ResultTable.getSimpleMessageTable(String.format("The database named %s already exists!", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("The database named %s already exists!", ctx.IDENTIFIER().getText().toLowerCase()));
             }
             Files.createDirectory(dir);
-            return ResultTable.getSimpleMessageTable(String.format("The database named %s is created successfully!", ctx.IDENTIFIER().getText()));
+            return ResultTable.getSimpleMessageTable(String.format("The database named %s is created successfully!", ctx.IDENTIFIER().getText().toLowerCase()));
         }catch (Exception e){
             throw new ParseCancellationException(e);
         }
@@ -800,17 +800,17 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitDrop_db(minisqlParser.Drop_dbContext ctx) {
         try {
-            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText());
+            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText().toLowerCase());
             if(dir.toString().equals(currentDB.getDirectory()))
             {
                 return ResultTable.getSimpleMessageTable("Cannot delete the database in usage currently");
             }
             if(!Files.isDirectory(dir))
             {
-                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText().toLowerCase()));
             }else{
                 Misc.rmDir(dir);
-                return ResultTable.getSimpleMessageTable(String.format("Database (%s) dropped.", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("Database (%s) dropped.", ctx.IDENTIFIER().getText().toLowerCase()));
             }
         }catch (Exception e){
             throw new ParseCancellationException(e);
@@ -820,19 +820,19 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitUse_db(minisqlParser.Use_dbContext ctx) {
         try {
-            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText());
+            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText().toLowerCase());
             if(dir.toString().equals(currentDB.getDirectory()))
             {
-                return ResultTable.getSimpleMessageTable(String.format("Already in database: %s!", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("Already in database: %s!", ctx.IDENTIFIER().getText().toLowerCase()));
             }
             if(!Files.isDirectory(dir))
             {
-                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText().toLowerCase()));
             }else{
                 currentDB.close();
                 currentDB = new Database(dir.toString());
                 currentDB.resume();
-                return ResultTable.getSimpleMessageTable(String.format("Switched to database: %s", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("Switched to database: %s", ctx.IDENTIFIER().getText().toLowerCase()));
             }
         }catch (Exception e){
             throw new ParseCancellationException(e);
@@ -856,10 +856,10 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitShow_db(minisqlParser.Show_dbContext ctx) {
         try{
-            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText());
+            Path dir = Paths.get(dataDir.toString(), ctx.IDENTIFIER().getText().toLowerCase());
             if(!Files.isDirectory(dir))
             {
-                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText()));
+                return ResultTable.getSimpleMessageTable(String.format("The database named %s does not exist!", ctx.IDENTIFIER().getText().toLowerCase()));
             }else{
                 return ResultTable.getSimpleTable("tableName",
                         Files.list(dir)
@@ -916,10 +916,10 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitInsert_table(minisqlParser.Insert_tableContext ctx) {
         try {
-            String table_name = ctx.table_name().IDENTIFIER().getText();
+            String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             Relation table = currentDB.getRelation(table_name);
             if(table == null) return ResultTable.getSimpleMessageTable(String.format("The table named %s does not exist!", table_name));
-            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText()).collect(Collectors.toCollection(HashSet::new)));
+            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText().toLowerCase()).collect(Collectors.toCollection(HashSet::new)));
             boolean isInOrder = colNames.size() == 0;
             if(colNames.size() != 0)
             {// insert with custom col name order
@@ -941,7 +941,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             {
                 for(minisqlParser.Column_nameContext col : ctx.column_name())
                 {
-                    permute.add(table.meta.colnames.indexOf(col.IDENTIFIER().getText()));
+                    permute.add(table.meta.colnames.indexOf(col.IDENTIFIER().getText().toLowerCase()));
                 }
             }
             for(minisqlParser.RowContext row : ctx.row())
@@ -996,7 +996,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         try{
             if(ctx.join_operator() == null)
             {// simple selection for just one table
-                String table_name = ctx.table_name(0).IDENTIFIER().getText();
+                String table_name = ctx.table_name(0).IDENTIFIER().getText().toLowerCase();
                 if(currentDB.getRelation(table_name) == null)
                     return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table_name));
                 Relation table = currentDB.getRelation(table_name);
@@ -1011,7 +1011,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 }else{
                     colNames = ctx.result_column()
                             .stream()
-                            .map(x -> x.column_name().IDENTIFIER().getText()).collect(Collectors.toCollection(ArrayList::new));
+                            .map(x -> x.column_name().IDENTIFIER().getText().toLowerCase()).collect(Collectors.toCollection(ArrayList::new));
                 }
                 ArrayList<Integer> colIDs = colNames.stream().map(x -> table.meta.colnames.indexOf(x)).collect(Collectors.toCollection(ArrayList::new));
                 if(colIDs.contains(-1))
@@ -1021,11 +1021,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         .collect(Collectors.toCollection(ArrayList::new));
                 return new ResultTable(colNames, data);
             }else {
-                String table1_name = ctx.table_name(0).IDENTIFIER().getText();
+                String table1_name = ctx.table_name(0).IDENTIFIER().getText().toLowerCase();
                 Relation table1 = currentDB.getRelation(table1_name);
                 if(table1 == null)
                     return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table1_name));
-                String table2_name = ctx.table_name(1).IDENTIFIER().getText();
+                String table2_name = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
                 Relation table2 = currentDB.getRelation(table2_name);
                 if(table2 == null)
                     return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table2_name));
@@ -1055,7 +1055,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                                 .join_constraint()
                                 .column_name()
                                 .stream()
-                                .map(x -> x.IDENTIFIER().getText())
+                                .map(x -> x.IDENTIFIER().getText().toLowerCase())
                                 .collect(Collectors.toCollection(ArrayList::new));
                         for(String name : usingNames)
                         {
@@ -1128,16 +1128,16 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 }else{
                     tabIDAndColIDPairs = ctx.result_column().stream().map(x -> {
                         return tableIDAndColID.getTableIDAndColID(
-                                x.table_name() != null ? x.table_name().IDENTIFIER().getText() : null,
-                                x.column_name().IDENTIFIER().getText());
+                                x.table_name() != null ? x.table_name().IDENTIFIER().getText().toLowerCase() : null,
+                                x.column_name().IDENTIFIER().getText().toLowerCase());
                     }).collect(Collectors.toCollection(ArrayList::new));
                     colnames = ctx
                             .result_column()
                             .stream()
                             .map(
                                     x ->
-                                            (x.table_name() != null ? x.table_name().IDENTIFIER().getText() + "." : "")
-                                                    + x.column_name().IDENTIFIER().getText())
+                                            (x.table_name() != null ? x.table_name().IDENTIFIER().getText().toLowerCase() + "." : "")
+                                                    + x.column_name().IDENTIFIER().getText().toLowerCase())
                             .collect(Collectors.toCollection(ArrayList::new));
                 }
                 ArrayList<ArrayList<Object>> values =
@@ -1161,13 +1161,13 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitUpdate_table(minisqlParser.Update_tableContext ctx) {
         try{
-            String table_name = ctx.table_name().IDENTIFIER().getText();
+            String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             if(currentDB.getRelation(table_name) == null)
                 return ResultTable.getSimpleMessageTable(String.format("Update table failed: table %s does not exists.", table_name));
             Relation table = currentDB.getRelation(table_name);
 
             //对指定的列名查重, 如果非重复列名和语句中的列名个数不等, 则说明语句中有重复列名
-            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText()).collect(Collectors.toCollection(HashSet::new)));
+            Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText().toLowerCase()).collect(Collectors.toCollection(HashSet::new)));
             if(colNames.size() != ctx.column_name().size())
             {
                 return ResultTable.getSimpleMessageTable("Update failed: cannot update rows with duplicate names!");
@@ -1182,9 +1182,9 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 minisqlParser.Literal_valueContext literal_value = ctx.literal_value(i);
 
                 //根据column_name, 获取column的列序号
-                int colID = table.meta.colnames.indexOf(column_name.IDENTIFIER().getText());
+                int colID = table.meta.colnames.indexOf(column_name.IDENTIFIER().getText().toLowerCase());
                 if(colID == -1)
-                    return ResultTable.getSimpleMessageTable(String.format("Update failed: row %s not exist!", column_name.IDENTIFIER().getText()));
+                    return ResultTable.getSimpleMessageTable(String.format("Update failed: row %s not exist!", column_name.IDENTIFIER().getText().toLowerCase()));
 
                 //根据literal_value, 获取要修改的内容
                 Object new_value = parseLiteral(literal_value, table.meta.coltypes.get(colID), table.meta.colsizes.get(colID));
