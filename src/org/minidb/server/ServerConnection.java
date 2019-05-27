@@ -891,6 +891,15 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             return null;
         }
         String text = element.getText();
+        if(element.STRING_LITERAL() != null)
+        {
+            text = text.substring(1, text.length() - 1);
+            if(colType == String.class)
+            {
+                text = StringEscapeUtils.unescapeJava(text);
+                return Configuration.padString(text, colSize);
+            }
+        }
         if(colType == Integer.class)
         {
             return Integer.valueOf(text);
@@ -905,9 +914,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             return Double.valueOf(text);
         }else if(colType == String.class)
         {
-            assert text.length() >= 2 && text.startsWith("'") && text.endsWith("'") : String.format("Illegal string literal %s!", text);
-            text = text.substring(1, text.length() - 1);
-            text = StringEscapeUtils.unescapeJava(text);
             return Configuration.padString(text, colSize);
         }
         return null;

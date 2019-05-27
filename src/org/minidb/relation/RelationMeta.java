@@ -92,19 +92,9 @@ public class RelationMeta implements Serializable {
             nonNullableCols.addAll(each);
         }
         HashSet<Integer> nullableCols = new HashSet<Integer>(nullableColIds);
-        nonNullableCols.retainAll(nullableCols);
-        if(nonNullableCols.size() != 0)
-        {
-            StringBuilder msg = new StringBuilder();
-            msg.append("[");
-            for(Integer each : nonNullableCols)
-            {
-                msg.append(colnames.get(each));
-                msg.append(' ');
-            }
-            msg.append("]");
-            throw new MiniDBException(String.format("Conflict nullability requirement for %s", msg.toString()));
-        }
+        // non-nullable constraint is implicit
+        nullableCols.removeAll(nonNullableCols);
+        nullableColIds = new ArrayList<>(nullableCols);
         return true;
     }
 
