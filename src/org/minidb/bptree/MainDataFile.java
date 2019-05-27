@@ -1,5 +1,6 @@
 package org.minidb.bptree;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.minidb.exception.MiniDBException;
 
 import java.io.File;
@@ -116,6 +117,7 @@ public class MainDataFile {
         {
             throw new MiniDBException(String.format("The row %d does not exist!", rowID));
         }
+        file.seek(position);
         byte[] buffer = new byte[conf.pageSize];
         file.read(buffer);
         ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
@@ -206,39 +208,42 @@ public class MainDataFile {
             file.setLength(file.length() - conf.pageSize * tailFreePages.size());
         }
 
-        Long[] positions = new Long[freeSlots.size()];
+        Long[] positions = new Long[freeSlots.size() + 1];
         freeSlots.toArray(positions);
+        positions[positions.length - 1] = -1L;
 
-        int pages = freeSlots.size() / conf.nValidPointerInFreePage;
+        int pages = positions.length / conf.nValidPointerInFreePage;
         if(freeSlots.size() % conf.nValidPointerInFreePage != 0)
         {
             pages += 1;
         }
+        Long[] freePagePositions = new Long[pages];
+        System.arraycopy(positions, 0, freePagePositions, 0, pages);
 
         file.seek(0);
         file.writeLong(elementCount);
-        file.writeLong(pages == 0 ? -1L : positions[0]);
+        file.writeLong(pages == 0 ? -1L : freePagePositions[0]);
 
         byte[] buffer = new byte[conf.pageSize];
 
         int ipage = 0, ifree = 1; // the first position is written in the file header
         while (ipage < pages && ifree < positions.length)
         {
-            file.seek(positions[ipage++]);
+            file.seek(freePagePositions[ipage++]);
             ByteBuffer bbuffer = ByteBuffer.wrap(buffer);bbuffer.order(ByteOrder.BIG_ENDIAN);
             if(ipage == pages)
             {// end
                 bbuffer.putLong(-1L);
             }else {
-                bbuffer.putLong(positions[ipage]);
+                bbuffer.putLong(freePagePositions[ipage]);
             }
             for (int i = 0; i < conf.nValidPointerInFreePage; i++) {
                 if(ifree >= positions.length)
                 {
                     bbuffer.putLong(-1L);
-                    break;
+                }else{
+                    bbuffer.putLong(positions[ifree++]);
                 }
-                bbuffer.putLong(positions[ifree++]);
             }
             file.write(buffer);
         }

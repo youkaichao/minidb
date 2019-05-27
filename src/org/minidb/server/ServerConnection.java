@@ -8,6 +8,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.minidb.bptree.BPlusTree;
+import org.minidb.bptree.Configuration;
 import org.minidb.bptree.MainDataFile;
 import org.minidb.database.Database;
 import org.minidb.exception.MiniDBException;
@@ -28,6 +29,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements Runnable {
     private Socket socket;
@@ -279,7 +281,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         int colID = table.meta.colnames.indexOf(ctx.value_expr(0).column_name().IDENTIFIER().getText());
         if(colID == -1) return null;
         // check the value
-        parseLiteral(ctx.value_expr(1).literal_value(), table.meta.coltypes.get(colID));
+        parseLiteral(ctx.value_expr(1).literal_value(), table.meta.coltypes.get(colID), table.meta.colsizes.get(colID));
         // find the index to be used
         for(BPlusTree tree : table.superKeyTrees)
         {
@@ -431,7 +433,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 if(second.literal_value() != null)
                 {
                     hasLiteral = true;
-                    literal = parseLiteral(second.literal_value(), leftColType);
+                    literal = parseLiteral(second.literal_value(), leftColType,
+                            tableIDAndColID.tables.get(leftTableID).meta.colsizes.get(leftTableColID));
                     if(literal == null)
                         throw new ParseCancellationException("Not supported for comparison with null!");
                 }else{
@@ -624,7 +627,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             String colName = indexableExpr.value_expr(0).column_name().IDENTIFIER().getText();
             Integer colID = table.meta.colnames.indexOf(colName);
             Type colType = table.meta.coltypes.get(colID);
-            Object value = parseLiteral(indexableExpr.value_expr(1).literal_value(), colType);
+            Object value = parseLiteral(indexableExpr.value_expr(1).literal_value(), colType, table.meta.colsizes.get(colID));
             if(tree.conf.colIDs.size() == 1)
             {// exact equality comparison
                 LinkedList<Long> findRowIDs = tree.search(new ArrayList<Object>(Arrays.asList(value)));
@@ -881,7 +884,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         }
     }
 
-    private static Object parseLiteral(minisqlParser.Literal_valueContext element, Type colType)
+    private static Object parseLiteral(minisqlParser.Literal_valueContext element, Type colType, int colSize)
     {
         if(element.K_NULL() != null)
         {
@@ -905,7 +908,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             assert text.length() >= 2 && text.startsWith("'") && text.endsWith("'") : String.format("Illegal string literal %s!", text);
             text = text.substring(1, text.length() - 1);
             text = StringEscapeUtils.unescapeJava(text);
-            return text;
+            return Configuration.padString(text, colSize);
         }
         return null;
     }
@@ -974,7 +977,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 Object[] literal_row = new Object[row.size()];
                 for (int i = 0; i < row.size(); ++i)
                 {
-                    literal_row[i] = parseLiteral(row.get(i), table.meta.coltypes.get(i));
+                    literal_row[i] = parseLiteral(row.get(i), table.meta.coltypes.get(i), table.meta.colsizes.get(i));
                 }
                 literal_values.add(new ArrayList<Object>(Arrays.asList(literal_row)));
             }
@@ -999,10 +1002,17 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 Relation table = currentDB.getRelation(table_name);
                 minisqlParser.Logical_exprContext expr = ctx.logical_expr();
                 LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
+
                 // select columns
-                ArrayList<String> colNames = ctx.result_column()
-                        .stream()
-                        .map(x -> x.column_name().IDENTIFIER().getText()).collect(Collectors.toCollection(ArrayList::new));
+                ArrayList<String> colNames;
+                if(ctx.result_column().size() == 0)
+                {// select *
+                    colNames = table.meta.colnames;
+                }else{
+                    colNames = ctx.result_column()
+                            .stream()
+                            .map(x -> x.column_name().IDENTIFIER().getText()).collect(Collectors.toCollection(ArrayList::new));
+                }
                 ArrayList<Integer> colIDs = colNames.stream().map(x -> table.meta.colnames.indexOf(x)).collect(Collectors.toCollection(ArrayList::new));
                 if(colIDs.contains(-1))
                     return ResultTable.getSimpleMessageTable("Unknown column name(s) for selection!");
@@ -1101,19 +1111,35 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 });
 
                 // col select from joined_results
-                ArrayList<Pair<Integer, Integer>> tabIDAndColIDPairs = ctx.result_column().stream().map(x -> {
-                    return tableIDAndColID.getTableIDAndColID(
-                            x.table_name() != null ? x.table_name().IDENTIFIER().getText() : null,
-                            x.column_name().IDENTIFIER().getText());
-                }).collect(Collectors.toCollection(ArrayList::new));
-                ArrayList<String> colnames = ctx
-                        .result_column()
-                        .stream()
-                        .map(
-                            x ->
-                                    (x.table_name() != null ? x.table_name().IDENTIFIER().getText() + "." : "")
-                                            + x.column_name().IDENTIFIER().getText())
-                        .collect(Collectors.toCollection(ArrayList::new));
+                ArrayList<Pair<Integer, Integer>> tabIDAndColIDPairs;
+                ArrayList<String> colnames = new ArrayList<>();
+                if(ctx.result_column().size() == 0)
+                {// select *
+                    ArrayList<Pair<Integer, Integer>> tmp = new ArrayList<>(); // variable in lambda should be final
+                    for (int i = 0; i < table1.meta.ncols; i++) {
+                        tmp.add(new Pair<>(0, i));
+                        colnames.add(table1_name + "." + table1.meta.colnames.get(i));
+                    }
+                    for (int i = 0; i < table2.meta.ncols; i++) {
+                        tmp.add(new Pair<>(1, i));
+                        colnames.add(table2_name + "." + table2.meta.colnames.get(i));
+                    }
+                    tabIDAndColIDPairs = tmp;
+                }else{
+                    tabIDAndColIDPairs = ctx.result_column().stream().map(x -> {
+                        return tableIDAndColID.getTableIDAndColID(
+                                x.table_name() != null ? x.table_name().IDENTIFIER().getText() : null,
+                                x.column_name().IDENTIFIER().getText());
+                    }).collect(Collectors.toCollection(ArrayList::new));
+                    colnames = ctx
+                            .result_column()
+                            .stream()
+                            .map(
+                                    x ->
+                                            (x.table_name() != null ? x.table_name().IDENTIFIER().getText() + "." : "")
+                                                    + x.column_name().IDENTIFIER().getText())
+                            .collect(Collectors.toCollection(ArrayList::new));
+                }
                 ArrayList<ArrayList<Object>> values =
                     joined_results
                         .stream()
@@ -1121,7 +1147,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                             rowPair -> tabIDAndColIDPairs.stream().map(
                                     id_pair -> {
                                         Integer tabID = id_pair.a, colID = id_pair.b;
-                                        return (tabID == 1 ? rowPair.a : rowPair.b).key.get(colID);
+                                        return (tabID.equals(0)? rowPair.a : rowPair.b).key.get(colID);
                                     }
                             ).collect(Collectors.toCollection(ArrayList::new))
                         ).collect(Collectors.toCollection(ArrayList::new));
@@ -1161,7 +1187,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     return ResultTable.getSimpleMessageTable(String.format("Update failed: row %s not exist!", column_name.IDENTIFIER().getText()));
 
                 //根据literal_value, 获取要修改的内容
-                Object new_value = parseLiteral(literal_value, table.meta.coltypes.get(colID));
+                Object new_value = parseLiteral(literal_value, table.meta.coltypes.get(colID), table.meta.colsizes.get(colID));
                 colAndValues.add(new Pair<>(colID, new_value));
             }
 

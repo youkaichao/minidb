@@ -223,7 +223,7 @@ public class Configuration {
         return ans.toString();
     }
 
-    private static String padString(String arg, int nBytes) throws MiniDBException
+    public static String padString(String arg, int nBytes) throws MiniDBException
     {
         int size = arg.getBytes(StandardCharsets.UTF_8).length;
         if(size > nBytes)
