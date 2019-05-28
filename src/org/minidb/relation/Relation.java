@@ -18,8 +18,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Relation {
     public RelationMeta meta;
@@ -323,5 +325,46 @@ public class Relation {
         }catch (Exception e){
             throw new ParseCancellationException("Error!");
         }
+    }
+
+    private static class Helper
+    {
+        ArrayList<Relation> tables;
+        Consumer<ArrayList<MainDataFile.SearchResult>> func;
+        ArrayList<MainDataFile.SearchResult> place_holder;
+        int i, n;
+
+        public Helper(ArrayList<Relation> tables, Consumer<ArrayList<MainDataFile.SearchResult>> func) {
+            this.tables = tables;
+            this.func = func;
+            place_holder = new ArrayList<>();
+            n = tables.size();
+        }
+
+        public void run()
+        {
+            enumFunc(0);
+        }
+
+        private void enumFunc(int i)
+        {
+            if(i >= n)
+            {
+                func.accept(place_holder);
+                return;
+            }
+            tables.get(i).searchRows(x -> {
+                place_holder.add(x);
+                enumFunc(i + 1);
+                place_holder.remove(place_holder.size() - 1);
+                return false;
+            });
+        }
+    }
+
+    public static void traverseRelations(ArrayList<Relation> tables,
+                                         Consumer<ArrayList<MainDataFile.SearchResult>> func)
+    {
+        new Helper(tables, func).run();
     }
 }

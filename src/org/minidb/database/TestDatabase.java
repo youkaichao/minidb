@@ -39,4 +39,15 @@ public class TestDatabase {
 
         database.resume();
     }
+
+    @Test
+    public void testTraverse() throws IOException, ClassNotFoundException {
+        Database database = new Database();
+        database.directory = "data/default";
+        database.resume();
+        Relation table1 = database.getRelation("advisor"), table2 = database.getRelation("student");
+        Relation.traverseRelations(new ArrayList<>(Arrays.asList(table1, table2)), x -> {
+            System.out.println(x.get(0).rowID + " " + x.get(1).rowID);
+        });
+    }
 }
