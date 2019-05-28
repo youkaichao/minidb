@@ -342,6 +342,47 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             }
         }
 
+        public void adjustByJoinCondition(minisqlParser.Select_tableContext ctx)
+        {
+            if(ctx.join_operator() == null)
+                return;
+            if(ctx.join_operator().K_CARTESIAN() != null)
+                return;
+            if(ctx.join_operator().K_NATURAL() != null)
+            {
+                String tableName = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
+                int tableID = tableNames.indexOf(tableName);
+                for(Map.Entry<String, Integer> entry : counter.entrySet())
+                {
+                    if(entry.getValue().equals(2))
+                    {// a common name
+                        int colID = tables.get(tableID).meta.colnames.indexOf(entry.getKey());
+                        uniqueColNameToID.put(entry.getKey(), new Pair<>(tableID, colID));
+                        uniqueNames.add(entry.getKey());
+                    }
+                }
+                return;
+            }
+            if(ctx.join_operator().K_NATURAL() == null && ctx.join_constraint().K_USING() != null)
+            {
+                ArrayList<String> names = ctx
+                                .join_constraint()
+                                .column_name()
+                                .stream()
+                                .map(x -> x.IDENTIFIER().getText().toLowerCase())
+                                .collect(Collectors.toCollection(ArrayList::new));
+                String tableName = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
+                int tableID = tableNames.indexOf(tableName);
+                for(String colName : names)
+                {
+                    int colID = tables.get(tableID).meta.colnames.indexOf(colName);
+                    uniqueColNameToID.put(colName, new Pair<>(tableID, colID));
+                    uniqueNames.add(colName);
+                }
+                return;
+            }
+        }
+
         public Pair<Integer, Integer> getTableIDAndColID(String tableName, String colName)
         {
             if(tableName == null)
@@ -1038,6 +1079,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
                 ArrayList<Relation> tables = new ArrayList<>(Arrays.asList(table1, table2));
                 TableIDAndColID tableIDAndColID = new TableIDAndColID(tables);
+                tableIDAndColID.adjustByJoinCondition(ctx);
                 ArrayList<Pair<MainDataFile.SearchResult, MainDataFile.SearchResult>> joined_results = new ArrayList<>();
                 Expression expression;
 
