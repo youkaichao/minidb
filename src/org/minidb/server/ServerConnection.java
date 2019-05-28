@@ -344,42 +344,43 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
 
         public void adjustByJoinCondition(minisqlParser.Select_tableContext ctx)
         {
-            if(ctx.join_operator() == null)
-                return;
-            if(ctx.join_operator().K_CARTESIAN() != null)
-                return;
-            if(ctx.join_operator().K_NATURAL() != null)
-            {
-                String tableName = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
-                int tableID = tableNames.indexOf(tableName);
-                for(Map.Entry<String, Integer> entry : counter.entrySet())
+            int n = ctx.join_operator().size();
+            for (int join = 0; join < n; join++) {
+                if(ctx.join_operator(join).K_CARTESIAN() != null)
+                    continue;
+                if(ctx.join_operator(join).K_NATURAL() != null)
                 {
-                    if(entry.getValue().equals(2))
-                    {// a common name
-                        int colID = tables.get(tableID).meta.colnames.indexOf(entry.getKey());
-                        uniqueColNameToID.put(entry.getKey(), new Pair<>(tableID, colID));
-                        uniqueNames.add(entry.getKey());
+                    String tableName = ctx.table_name(join + 1).IDENTIFIER().getText().toLowerCase();
+                    int tableID = tableNames.indexOf(tableName);
+                    int ncols = tables.get(join + 1).meta.ncols;
+                    for (int i = 0; i < ncols; i++) {
+                        String name = tables.get(join + 1).meta.colnames.get(i);
+                        if(counter.get(name) > 1)
+                        {
+                            uniqueColNameToID.put(name, new Pair<>(tableID, i));
+                            uniqueNames.add(name);
+                        }
                     }
+                    continue;
                 }
-                return;
-            }
-            if(ctx.join_operator().K_NATURAL() == null && ctx.join_constraint().K_USING() != null)
-            {
-                ArrayList<String> names = ctx
-                                .join_constraint()
-                                .column_name()
-                                .stream()
-                                .map(x -> x.IDENTIFIER().getText().toLowerCase())
-                                .collect(Collectors.toCollection(ArrayList::new));
-                String tableName = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
-                int tableID = tableNames.indexOf(tableName);
-                for(String colName : names)
+                if(ctx.join_operator(join).K_NATURAL() == null && ctx.join_constraint(join).K_USING() != null)
                 {
-                    int colID = tables.get(tableID).meta.colnames.indexOf(colName);
-                    uniqueColNameToID.put(colName, new Pair<>(tableID, colID));
-                    uniqueNames.add(colName);
+                    ArrayList<String> names = ctx
+                            .join_constraint(join)
+                            .column_name()
+                            .stream()
+                            .map(x -> x.IDENTIFIER().getText().toLowerCase())
+                            .collect(Collectors.toCollection(ArrayList::new));
+                    String tableName = ctx.table_name(join + 1).IDENTIFIER().getText().toLowerCase();
+                    int tableID = tableNames.indexOf(tableName);
+                    for(String colName : names)
+                    {
+                        int colID = tables.get(tableID).meta.colnames.indexOf(colName);
+                        uniqueColNameToID.put(colName, new Pair<>(tableID, colID));
+                        uniqueNames.add(colName);
+                    }
+                    continue;
                 }
-                return;
             }
         }
 
@@ -519,17 +520,17 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             return ans;
         }
 
-        public static Expression getEqualityExpression(Collection<String> names, ArrayList<Relation> tables)
+        public static Expression getEqualityExpression(Collection<String> names, ArrayList<Relation> tables, int left_index)
         {// return expression with `a.a = b.a && a.c = b.c` used in natural join
             return names.stream().map(x -> {
                 Expression ans = new Expression();
                 ans.expressionType = ExpressionType.LEAF_EXPR;
                 ans.op = Opetator.EQ;
                 ans.hasLiteral = false;
-                ans.leftTableID = 0;
-                ans.rightTableID = 1;
-                ans.leftTableColID = tables.get(0).meta.colnames.indexOf(x);
-                ans.rightTableColID = tables.get(1).meta.colnames.indexOf(x);
+                ans.leftTableID = left_index;
+                ans.rightTableID = left_index + 1;
+                ans.leftTableColID = tables.get(left_index).meta.colnames.indexOf(x);
+                ans.rightTableColID = tables.get(left_index + 1).meta.colnames.indexOf(x);
                 ans.leftColType = tables.get(ans.leftTableID).meta.coltypes.get(ans.leftTableColID);
                 ans.rightColType = tables.get(ans.rightTableID).meta.coltypes.get(ans.rightTableColID);
                 if((ans.leftColType == String.class && ans.rightColType == String.class)
@@ -1027,7 +1028,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitSelect_table(minisqlParser.Select_tableContext ctx) {
         try{
-            if(ctx.join_operator() == null)
+            if(ctx.join_operator().size() == 0)
             {// simple selection for just one table
                 String table_name = ctx.table_name(0).IDENTIFIER().getText().toLowerCase();
                 if(currentDB.getRelation(table_name) == null)
@@ -1058,52 +1059,59 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 Relation table1 = currentDB.getRelation(table1_name);
                 if(table1 == null)
                     return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table1_name));
-                String table2_name = ctx.table_name(1).IDENTIFIER().getText().toLowerCase();
-                Relation table2 = currentDB.getRelation(table2_name);
-                if(table2 == null)
-                    return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table2_name));
-
-                ArrayList<Relation> tables = new ArrayList<>(Arrays.asList(table1, table2));
+                int n_time_join = ctx.join_operator().size();
+                ArrayList<Relation> tables = new ArrayList<>(Arrays.asList(table1));
+                for (int join = 0; join < n_time_join; join++) {
+                    String table_name = ctx.table_name(join + 1).IDENTIFIER().getText().toLowerCase();
+                    Relation table = currentDB.getRelation(table_name);
+                    if(table == null)
+                        return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s does not exists.", table_name));
+                    if(tables.indexOf(table) != -1)
+                        return ResultTable.getSimpleMessageTable(String.format("Select table failed: table %s used for multiple times.", table_name));
+                    tables.add(table);
+                }
                 TableIDAndColID tableIDAndColID = new TableIDAndColID(tables);
                 tableIDAndColID.adjustByJoinCondition(ctx);
-                ArrayList<Pair<MainDataFile.SearchResult, MainDataFile.SearchResult>> joined_results = new ArrayList<>();
-                Expression expression;
-
-                if(ctx.join_operator().K_CARTESIAN() != null)
-                {// cartesian product
-                    assert ctx.join_constraint() == null : "Select table failed: Cannot use join constraint in cartesian product";
-                    expression = new Expression(true);
-                }else if(ctx.join_operator().K_NATURAL() != null ||
-                        (ctx.join_operator().K_NATURAL() == null && ctx.join_constraint() != null && ctx.join_constraint().K_USING() != null))
-                {// natural join or join using xxx
-                    assert ctx.join_constraint() == null : "Select table failed: Cannot use join constraint in natural join";
-                    HashSet<String> commonNames = new HashSet<>(table1.meta.colnames);
-                    commonNames.retainAll(new HashSet<>(table2.meta.colnames));
-                    assert commonNames.size() > 0 : String.format("No common column names for table %s and %s.", table1_name, table2_name);
-                    HashSet<String> namesToUse;
-                    if(ctx.join_operator().K_NATURAL() != null)
-                    {//natural join
-                        namesToUse = commonNames;
-                    }else{
-                        ArrayList<String> usingNames = ctx
-                                .join_constraint()
-                                .column_name()
-                                .stream()
-                                .map(x -> x.IDENTIFIER().getText().toLowerCase())
-                                .collect(Collectors.toCollection(ArrayList::new));
-                        for(String name : usingNames)
-                        {
-                            assert commonNames.contains(name) : String.format("Column (%s) is not a common name.", name);
+                ArrayList<ArrayList<MainDataFile.SearchResult>> joined_results = new ArrayList<>();
+                Expression expression = new Expression(true);
+                for (int join = 0; join < n_time_join; join++) {
+                    if(ctx.join_operator(join).K_CARTESIAN() != null)
+                    {// cartesian product
+                        assert ctx.join_constraint() == null : "Select table failed: Cannot use join constraint in cartesian product";
+                        expression = Expression.And(expression, new Expression(true));
+                    }else if(ctx.join_operator(join).K_NATURAL() != null ||
+                            (ctx.join_operator(join).K_NATURAL() == null && ctx.join_constraint(join).K_USING() != null))
+                    {// natural join or join using xxx
+                        String name1 = ctx.table_name(join).IDENTIFIER().getText().toLowerCase();
+                        String name2 = ctx.table_name(join + 1).IDENTIFIER().getText().toLowerCase();
+                        HashSet<String> commonNames = new HashSet<>(tables.get(join).meta.colnames);
+                        commonNames.retainAll(new HashSet<>(tables.get(join + 1).meta.colnames));
+                        assert commonNames.size() > 0 : String.format("No common column names for table %s and %s.", name1, name2);
+                        HashSet<String> namesToUse;
+                        if(ctx.join_operator(join).K_NATURAL() != null)
+                        {//natural join
+                            namesToUse = commonNames;
+                        }else{
+                            ArrayList<String> usingNames = ctx
+                                    .join_constraint(join)
+                                    .column_name()
+                                    .stream()
+                                    .map(x -> x.IDENTIFIER().getText().toLowerCase())
+                                    .collect(Collectors.toCollection(ArrayList::new));
+                            for(String name : usingNames)
+                            {
+                                assert commonNames.contains(name) : String.format("Column (%s) is not a common name.", name);
+                            }
+                            namesToUse = new HashSet<>(usingNames);
                         }
-                        namesToUse = new HashSet<>(usingNames);
+                        // parse equality expressions
+                        expression = Expression.And(expression, Expression.getEqualityExpression(namesToUse, tables, join));
+                    }else{
+                        // parse logical expression
+                        assert ctx.join_operator(join).K_NATURAL() == null && ctx.join_constraint(join) != null && ctx.join_constraint(join).K_ON() != null
+                                : "Illegal join constraint.";
+                        expression = Expression.And(expression, new Expression(ctx.join_constraint(join).logical_expr(), tableIDAndColID));
                     }
-                    // parse equality expressions
-                    expression = Expression.getEqualityExpression(namesToUse, tables);
-                }else{
-                    // parse logical expression
-                    assert ctx.join_operator().K_NATURAL() == null && ctx.join_constraint() != null && ctx.join_constraint().K_ON() != null
-                            : "Illegal join constraint.";
-                    expression = new Expression(ctx.join_constraint().logical_expr(), tableIDAndColID);
                 }
 
                 // expression && where logical expression
@@ -1111,15 +1119,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         ctx.K_WHERE() != null ? new Expression(ctx.logical_expr(), tableIDAndColID) : new Expression(true);
                 final Expression final_expression = Expression.And(expression, where_expression);
 
-                table1.searchRows(result1 -> {
-                    table2.searchRows(result2 -> {
-                        if(final_expression.apply(new ArrayList<>(Arrays.asList(result1, result2))))
-                        {
-                            joined_results.add(new Pair<>(result1, result2));
-                        }
-                        return false;
-                    });
-                    return false;
+                Relation.traverseRelations(tables, x -> {
+                    if(final_expression.apply(x))
+                    {
+                        joined_results.add(new ArrayList<>(x));
+                    }
                 });
 
                 // col select from joined_results
@@ -1128,13 +1132,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 if(ctx.result_column().size() == 0)
                 {// select *
                     ArrayList<Pair<Integer, Integer>> tmp = new ArrayList<>(); // variable in lambda should be final
-                    for (int i = 0; i < table1.meta.ncols; i++) {
-                        tmp.add(new Pair<>(0, i));
-                        colnames.add(table1_name + "." + table1.meta.colnames.get(i));
-                    }
-                    for (int i = 0; i < table2.meta.ncols; i++) {
-                        tmp.add(new Pair<>(1, i));
-                        colnames.add(table2_name + "." + table2.meta.colnames.get(i));
+                    for (int i = 0; i < n_time_join + 1; i++) {
+                        for (int j = 0; j < tables.get(i).meta.ncols; j++) {
+                            tmp.add(new Pair<>(i, j));
+                            colnames.add(tableIDAndColID.tableNames.get(i) + "." + tables.get(i).meta.colnames.get(j));
+                        }
                     }
                     tabIDAndColIDPairs = tmp;
                 }else{
@@ -1156,10 +1158,10 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     joined_results
                         .stream()
                         .map(
-                            rowPair -> tabIDAndColIDPairs.stream().map(
+                            rows -> tabIDAndColIDPairs.stream().map(
                                     id_pair -> {
                                         Integer tabID = id_pair.a, colID = id_pair.b;
-                                        return (tabID.equals(0)? rowPair.a : rowPair.b).key.get(colID);
+                                        return (rows.get(tabID)).key.get(colID);
                                     }
                             ).collect(Collectors.toCollection(ArrayList::new))
                         ).collect(Collectors.toCollection(ArrayList::new));
