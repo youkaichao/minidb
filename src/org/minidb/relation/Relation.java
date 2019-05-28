@@ -1,6 +1,7 @@
 package org.minidb.relation;
 
 
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.minidb.bptree.*;
 import org.minidb.exception.MiniDBException;
 
@@ -8,6 +9,8 @@ import org.minidb.utils.Misc;
 
 import java.awt.*;
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Relation {
@@ -284,8 +288,40 @@ public class Relation {
         LinkedList<MainDataFile.SearchResult> ans = new LinkedList<MainDataFile.SearchResult>();
         for(Long rowID : rowIDs)
         {
-            ans.add(new MainDataFile.SearchResult(data.readRow(rowID), rowID));
+            MainDataFile.SearchResult result = new MainDataFile.SearchResult(data.readRow(rowID), rowID);
+            for(BPlusTree nullTree : nullTrees)
+            {
+                if(nullTree.search(new ArrayList<Object>(Arrays.asList(result.rowID))).size() != 0)
+                {
+                    result.key.set(nullTree.conf.colIDs.get(0), null);
+                }
+            }
+            ans.add(result);
         }
         return ans;
+    }
+
+    // linear scan
+    // process each row to restore the null value
+    public LinkedList<MainDataFile.SearchResult> searchRows(Function<MainDataFile.SearchResult, Boolean> pred){
+        Function<MainDataFile.SearchResult, Boolean> predpred = result -> {
+            try{
+                for(BPlusTree nullTree : nullTrees)
+                {
+                    if(nullTree.search(new ArrayList<Object>(Arrays.asList(result.rowID))).size() != 0)
+                    {
+                        result.key.set(nullTree.conf.colIDs.get(0), null);
+                    }
+                }
+                return pred.apply(result);
+            }catch (Exception e){
+                throw new ParseCancellationException("Error!");
+            }
+        };
+        try {
+            return data.searchRows(predpred);
+        }catch (Exception e){
+            throw new ParseCancellationException("Error!");
+        }
     }
 }

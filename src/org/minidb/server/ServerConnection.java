@@ -709,24 +709,10 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 ans = table.readRows(findRowIDs);
             }
         }
-        Function<MainDataFile.SearchResult, Boolean> pred = result -> {
-            try{
-                for(BPlusTree nullTree : table.nullTrees)
-                {
-                    if(nullTree.search(new ArrayList<Object>(Arrays.asList(result.rowID))).size() != 0)
-                    {
-                        result.key.set(nullTree.conf.colIDs.get(0), null);
-                    }
-                }
-                return expression.apply(new ArrayList<>(Arrays.asList(result)));
-            }catch (Exception e){
-                throw new ParseCancellationException("Error!");
-            }
-        };
         if(ans == null){
-            ans = table.data.searchRows(pred);
+            ans = table.searchRows(x -> expression.apply(new ArrayList<>(Arrays.asList(x))));
         }else {
-            ans = ans.stream().filter(pred::apply)
+            ans = ans.stream().filter(x -> expression.apply(new ArrayList<>(Arrays.asList(x))))
                     .collect(Collectors.toCollection(LinkedList::new));
         }
         return ans;
@@ -1125,37 +1111,15 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         ctx.K_WHERE() != null ? new Expression(ctx.logical_expr(), tableIDAndColID) : new Expression(true);
                 final Expression final_expression = Expression.And(expression, where_expression);
 
-                table1.data.searchRows(result1 -> {
-                    try{
-                        for(BPlusTree nullTree : table1.nullTrees)
+                table1.searchRows(result1 -> {
+                    table2.searchRows(result2 -> {
+                        if(final_expression.apply(new ArrayList<>(Arrays.asList(result1, result2))))
                         {
-                            if(nullTree.search(new ArrayList<Object>(Arrays.asList(result1.rowID))).size() != 0)
-                            {
-                                result1.key.set(nullTree.conf.colIDs.get(0), null);
-                            }
+                            joined_results.add(new Pair<>(result1, result2));
                         }
-                        table2.data.searchRows(result2 -> {
-                            try{
-                                for(BPlusTree nullTree : table2.nullTrees)
-                                {
-                                    if(nullTree.search(new ArrayList<Object>(Arrays.asList(result2.rowID))).size() != 0)
-                                    {
-                                        result2.key.set(nullTree.conf.colIDs.get(0), null);
-                                    }
-                                }
-                                if(final_expression.apply(new ArrayList<>(Arrays.asList(result1, result2))))
-                                {
-                                    joined_results.add(new Pair<>(result1, result2));
-                                }
-                            }catch (Exception e){
-                                throw new ParseCancellationException("Error!");
-                            }
-                            return false;
-                        });
                         return false;
-                    }catch (Exception e){
-                        throw new ParseCancellationException("Error!");
-                    }
+                    });
+                    return false;
                 });
 
                 // col select from joined_results
