@@ -117,29 +117,18 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     @Override
     public ResultTable visitCreate_table(minisqlParser.Create_tableContext ctx) {
         try {
-            //获取table_name
             String table_name = ctx.table_name().IDENTIFIER().getText().toLowerCase();
             if(currentDB.getRelation(table_name) != null)
                 return ResultTable.getSimpleMessageTable(String.format("Create table failed: table %s already exists.", table_name));
 
-            //开始解析命令内容, 期间检测命令合法性, 不做实际建表
-            //这张表是否已经设定了primary_key
             boolean setted_primary_key = false;
 
-            //解析列数据
-            //列数
             int ncols = 0;
-            //列名
             ArrayList<String> colnames = new ArrayList<String>();
-            //列类型
             ArrayList<Type> coltypes = new ArrayList<Type>();
-            //列大小
             ArrayList<Integer> colsizes = new ArrayList<Integer>();
-            //可空列的ID
             ArrayList<Integer> nullableColIds = new ArrayList<Integer>();
-            //superKey列ID(对primary key的列和unique的列建立superkey)
             ArrayList<ArrayList<Integer>> superKeys = new ArrayList<ArrayList<Integer>>();
-            //索引列ID(对not null的单列建立索引)
             ArrayList<ArrayList<Integer>> indices = new ArrayList<ArrayList<Integer>>();
 
             List<minisqlParser.Column_defContext> column_list = ctx.column_def();
@@ -147,14 +136,10 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             {
                 minisqlParser.Column_defContext column = column_list.get(i);
 
-                //维护列数
                 ncols++;
 
-                //解析列名
                 colnames.add(column.column_name().IDENTIFIER().getText().toLowerCase());
 
-                //解析列类型
-                //这一列是否已经指定了类型
                 if(column.type_name().K_INT() != null)
                 {
                     coltypes.add(Integer.class);
@@ -181,7 +166,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     String string_length_str = column.type_name().NUMERIC_LITERAL().getText();
                     if(string_length_str.contains("."))
                     {
-                        //字符串的长度是带小数点的
                         return ResultTable.getSimpleMessageTable("Create table failed: the length of row " + colnames.get(i) + " is invalid.");
                     }
                     else
@@ -190,8 +174,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     }
                 }
 
-                //解析列属性
-                //primary key属性
                 if(column.K_PRIMARY() != null && column.K_KEY() != null)
                 {
                     if(setted_primary_key)
@@ -205,13 +187,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                     }
                 }
 
-                //unique属性
                 if(column.K_UNIQUE() != null)
                 {
                     add_unique_ArrayList(superKeys, new ArrayList<Integer>(Arrays.asList(i)));
                 }
 
-                //not null属性
                 if(column.K_NOT() != null && column.K_NULL() != null)
                 {
                     add_unique_ArrayList(indices, new ArrayList<Integer>(Arrays.asList(i)));
@@ -232,10 +212,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 return ResultTable.getSimpleMessageTable(String.format("Create table failed: row size (%d) too large!", sizeSum));
             }
 
-            //解析表属性
             List<minisqlParser.Table_constraintContext> table_constraint_list = ctx.table_constraint();
             for(minisqlParser.Table_constraintContext table_constraint : table_constraint_list) {
-                //primary key属性
                 if (table_constraint.K_PRIMARY() != null && table_constraint.K_KEY() != null) {
                     if (setted_primary_key) {
                         return ResultTable.getSimpleMessageTable(String.format("Create table failed: table %s has multiple primary keys.", table_name));
@@ -244,14 +222,11 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                         setted_primary_key = true;
                     }
                 }
-                //unique属性
                 if (table_constraint.K_UNIQUE() != null) {
                     add_to_ArrayList_by_name(superKeys, table_constraint.column_name(), colnames);
                 }
             }
 
-            //数据解析完成,数据合法,开始执行
-            //新建meta
             RelationMeta meta = new RelationMeta();
             meta.ncols = ncols;
             meta.colnames = colnames;
@@ -1180,7 +1155,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 return ResultTable.getSimpleMessageTable(String.format("Update table failed: table %s does not exists.", table_name));
             Relation table = currentDB.getRelation(table_name);
 
-            //对指定的列名查重, 如果非重复列名和语句中的列名个数不等, 则说明语句中有重复列名
             Set<String> colNames = new HashSet<String>(ctx.column_name().stream().map(x -> x.IDENTIFIER().getText().toLowerCase()).collect(Collectors.toCollection(HashSet::new)));
             if(colNames.size() != ctx.column_name().size())
             {
@@ -1188,36 +1162,23 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
             }
 
             ArrayList<Pair<Integer, Object>> colAndValues = new ArrayList<>();
-            //解析&处理set子句
             for(int i = 0; i < ctx.column_name().size(); i++)
             {
-                //对一行column_name - literal_value组合:
                 minisqlParser.Column_nameContext column_name = ctx.column_name(i);
                 minisqlParser.Literal_valueContext literal_value = ctx.literal_value(i);
 
-                //根据column_name, 获取column的列序号
                 int colID = table.meta.colnames.indexOf(column_name.IDENTIFIER().getText().toLowerCase());
                 if(colID == -1)
                     return ResultTable.getSimpleMessageTable(String.format("Update failed: row %s not exist!", column_name.IDENTIFIER().getText().toLowerCase()));
 
-                //根据literal_value, 获取要修改的内容
                 Object new_value = parseLiteral(literal_value, table.meta.coltypes.get(colID), table.meta.colsizes.get(colID));
                 colAndValues.add(new Pair<>(colID, new_value));
             }
 
-            //1: 根据where子句, 从待更新的table中取出所有原数据列
-            //2: 根据set子句, 把原数据列该改的部分改掉, 成为新数据列
-            //3: 把原数据列从表中删掉,把新数据列插进去.
-            //4: rollback, 如果第3步成功,那么update成功; 否则把新数据列删掉, 把原数据列插回去.
-            //当前进展: 基本功能实现, 可以考虑做: rollback
-
-            //解析where子句
             minisqlParser.Logical_exprContext expr = ctx.logical_expr();
-            //没有where子句的话, expr == null, query将返回所有值.
             LinkedList<MainDataFile.SearchResult> ans = query(expr, table);
             if(ans.size() == 0)
             {
-                //查询结果为空
                 return ResultTable.getSimpleMessageTable("Update succeed: no row changed!");
             }
             ArrayList<ArrayList<Object>> data = new ArrayList<ArrayList<Object>>();
@@ -1226,10 +1187,8 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 data.add(ans_item.key);
             }
 
-            //删除表中ans对应的列
             table.delete(ans.stream().map(x -> x.rowID).collect(Collectors.toCollection(ArrayList::new)));
 
-            // set new data
             for(Pair<Integer, Object> pair : colAndValues)
             {
                 Integer colID = pair.a;
@@ -1240,7 +1199,6 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 }
             }
 
-            //把新data插回去
             for(ArrayList<Object> data_item : data)
             {
                 table.insert(data_item);
