@@ -24,6 +24,11 @@ public class Server {
         for (int i = 0; i < arg.length; i++) {
             String currentArg = arg[i];
 
+            if (currentArg.equals("--help") || currentArg.equals("-h")) {
+                System.out.println("usage: java org.minidb.server.Server --port 2134 --data ./data  --db default");
+                System.exit(0);
+            }
+
             if (currentArg.equals("--port")) {
                 i++;
                 port = Integer.valueOf(arg[i]);

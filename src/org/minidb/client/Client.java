@@ -26,6 +26,11 @@ public class Client {
         for (int i = 0; i < arg.length; i++) {
             String currentArg = arg[i];
 
+            if (currentArg.equals("--help") || currentArg.equals("-h")) {
+                System.out.println("usage: java org.minidb.server.Client --host 127.0.0.1 --port 2134");
+                System.exit(0);
+            }
+
             if (currentArg.equals("--port")) {
                 i++;
                 port = Integer.valueOf(arg[i]);
