@@ -38,6 +38,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
     private ObjectInputStream ois;
     private ObjectOutputStream oos;
     private boolean closed;
+    private long elapsedTime;
 
     ServerConnection(Socket socket, Path dataDir, Path defaultDBPath) throws IOException, MiniDBException, ClassNotFoundException {
         this.socket = socket;
@@ -45,6 +46,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         currentDB = new Database(defaultDBPath.toString());
         currentDB.resume();
         closed = false;
+        elapsedTime = 0L;
     }
 
     private void send(Object o) throws IOException {
@@ -70,7 +72,9 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
                 {
                     send(ResultTable.getSimpleMessageTable(listener.getAllMessage()));
                 }else{
+                    long start = System.currentTimeMillis();
                     ResultTable result = visit(tree);
+                    elapsedTime += System.currentTimeMillis() - start;
                     send(result);
                 }
                 if(closed)
@@ -881,7 +885,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         try{
             currentDB.close();
             closed = true;
-            return ResultTable.getSimpleMessageTable("Bye Bye");
+            return ResultTable.getSimpleMessageTable(String.format("Bye Bye, you have used %d milliseconds in total", elapsedTime));
         }catch (Exception e){
             throw new ParseCancellationException(e);
         }
