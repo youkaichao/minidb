@@ -57,6 +57,11 @@ public class Client {
                 if(commands.isEmpty())
                 {
                     command = scanner.nextLine();
+                    while (!command.endsWith(";"))
+                    {
+                        command += scanner.nextLine();
+                    }
+                    command = command.substring(0, command.length() - 1);
                     if(command.startsWith("import"))
                     {
                         import_mode = true;
@@ -66,7 +71,13 @@ public class Client {
                         Scanner fscanner = new Scanner(new FileInputStream(new File(filename)));
                         while (fscanner.hasNextLine())
                         {
-                            commands.addLast(fscanner.nextLine());
+                            String tmpCommand = fscanner.nextLine();
+                            while (!tmpCommand.endsWith(";"))
+                            {
+                                tmpCommand += fscanner.nextLine();
+                            }
+                            tmpCommand = tmpCommand.substring(0, tmpCommand.length() - 1);
+                            commands.addLast(tmpCommand);
                             import_remain_line_count++;
                         }
                     }else {
