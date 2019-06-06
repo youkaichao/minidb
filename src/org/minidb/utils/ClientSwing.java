@@ -5,12 +5,15 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.net.Socket;
 
 import javafx.scene.control.Tab;
 import javafx.scene.layout.Pane;
 import org.minidb.grammar.ResultTable;
 import java.io.*;
+import java.rmi.server.ExportException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Scanner;
@@ -154,7 +157,12 @@ public class ClientSwing {
                         boolean closed = false;
                         try {
                             if (commands.isEmpty()) {
-                                command = scann.nextLine();
+                                command = scann.nextLine().trim();
+                                while (!command.endsWith(";"))
+                                {
+                                    command += scann.nextLine().trim();
+                                }
+                                command = command.substring(0, command.length() - 1);
                                 if (command.startsWith("import")) {
                                     String filename = command.substring(6).replaceAll("\\s+", "");
                                     Scanner fscanner = null;
@@ -164,7 +172,13 @@ public class ClientSwing {
                                         ex.printStackTrace();
                                     }
                                     while (fscanner.hasNextLine()) {
-                                        commands.push(fscanner.nextLine());
+                                        String tmpCommand = fscanner.nextLine().trim();
+                                        while (!tmpCommand.endsWith(";"))
+                                        {
+                                            tmpCommand += fscanner.nextLine().trim();
+                                        }
+                                        tmpCommand = tmpCommand.substring(0, tmpCommand.length() - 1);
+                                        commands.push(tmpCommand);
                                     }
                                 } else {
                                     commands.push(command);
@@ -197,10 +211,10 @@ public class ClientSwing {
                                     }
                                     System.out.println();
                                     Object[][] dataShow = new Object[result.data.size()][result.meta.ncols];
-                                    pos = 0;
                                     int out_pos = 0;
                                     for (ArrayList<Object> row : result.data) {
                                         Object[] rowShow = new Object[result.meta.ncols];
+                                        pos = 0;
                                         for (Object o : row) {
                                             if (o == null) {
                                                 System.out.print("[null]");
@@ -245,6 +259,22 @@ public class ClientSwing {
 
                 }
             });
+        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent event) {
+                try {
+                    UI.oos.writeObject("exit;");
+                    Object obj = UI.ois.readObject();
+                    System.out.println("Bye Bye");
+                }catch (Exception e)
+                {}
+                finally {
+                    frame.dispose();
+                    System.exit(0);
+                }
+            }
+        });
         }
 
 
