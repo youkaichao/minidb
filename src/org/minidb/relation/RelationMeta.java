@@ -99,10 +99,15 @@ public class RelationMeta implements Serializable {
     }
 
     public static RelationMeta read(String filepath) throws IOException, ClassNotFoundException {
-        return (RelationMeta) new ObjectInputStream(new FileInputStream(filepath)).readObject();
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filepath));
+        RelationMeta tmp = (RelationMeta) ois.readObject();
+        ois.close();
+        return tmp;
     }
 
     public void write(String filepath) throws IOException {
-        new ObjectOutputStream(new FileOutputStream(filepath)).writeObject(this);
+        ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filepath));
+        oos.writeObject(this);
+        oos.close();
     }
 }

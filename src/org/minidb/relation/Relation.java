@@ -38,6 +38,7 @@ public class Relation {
     }
 
     public void drop() throws IOException {
+        close();
         Misc.rmDir(directory);
     }
 
