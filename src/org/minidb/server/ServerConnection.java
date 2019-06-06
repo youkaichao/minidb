@@ -254,7 +254,7 @@ public class ServerConnection extends minisqlBaseVisitor<ResultTable> implements
         boolean literalEq = ctx != null
                 && ctx.value_expr() != null
                 && ctx.K_EQ() != null
-                && ctx.value_expr(1).literal_value() == null
+                && ctx.value_expr(1).literal_value() != null
                 && ctx.value_expr(0).column_name() != null;
         if(!literalEq) return null;
         int colID = table.meta.colnames.indexOf(ctx.value_expr(0).column_name().IDENTIFIER().getText().toLowerCase());

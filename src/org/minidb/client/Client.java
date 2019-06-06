@@ -56,10 +56,10 @@ public class Client {
                 String command;
                 if(commands.isEmpty())
                 {
-                    command = scanner.nextLine();
+                    command = scanner.nextLine().trim();
                     while (!command.endsWith(";"))
                     {
-                        command += scanner.nextLine();
+                        command += scanner.nextLine().trim();
                     }
                     command = command.substring(0, command.length() - 1);
                     if(command.startsWith("import"))
@@ -71,10 +71,10 @@ public class Client {
                         Scanner fscanner = new Scanner(new FileInputStream(new File(filename)));
                         while (fscanner.hasNextLine())
                         {
-                            String tmpCommand = fscanner.nextLine();
+                            String tmpCommand = fscanner.nextLine().trim();
                             while (!tmpCommand.endsWith(";"))
                             {
-                                tmpCommand += fscanner.nextLine();
+                                tmpCommand += fscanner.nextLine().trim();
                             }
                             tmpCommand = tmpCommand.substring(0, tmpCommand.length() - 1);
                             commands.addLast(tmpCommand);
