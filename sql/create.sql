@@ -1,0 +1,1 @@
+create table test (int_1 int, double_2  double, string_3 string(15), primary key (int_1, double_2));
